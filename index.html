@@ -99,7 +99,7 @@
         import { getFirestore, doc, setDoc, onSnapshot, collection, query, limit } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
         // IMPORTANT: YOUR FIREBASE CONFIGURATION
-        const customFirebaseConfig = {
+        const firebaseConfig = {
             apiKey: "AIzaSyCXGePW9HO2gZb-YXVOXbof_eKHv20PsNo",
             authDomain: "cyber-security-month.firebaseapp.com",
             projectId: "cyber-security-month",
@@ -109,12 +109,11 @@
             measurementId: "G-39KS43N4R2" 
         };
         
-        const appId = customFirebaseConfig.projectId;
-        const firebaseConfig = customFirebaseConfig;
-        const initialAuthToken = null;
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
         
-        let db;
-        let auth;
+        const appId = firebaseConfig.projectId;
         let userId;
         let finalGameScore;
 
@@ -124,15 +123,11 @@
         const nameModal = document.getElementById('name-modal');
         const playerNameInput = document.getElementById('player-name-input');
         const submitNameButton = document.getElementById('submit-name-button');
-
-        // Initialize Firebase and authenticate
-        const initializeFirebase = async () => {
+        
+        // This is a new function to wrap the async code
+        const setupFirebase = async () => {
             loadingOverlay.classList.remove('hidden');
             try {
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-
                 const storedUserId = localStorage.getItem('spotThePhishUserId');
                 if (storedUserId) {
                     await signInAnonymously(auth);
@@ -153,7 +148,6 @@
                         console.log("User signed out");
                     }
                 });
-
             } catch (error) {
                 console.error("Error initializing Firebase:", error);
                 loadingOverlay.classList.add('hidden');
@@ -163,7 +157,6 @@
             }
         };
 
-        // Save the final score to Firestore
         const saveScore = async () => {
             const playerName = playerNameInput.value.trim() || 'Anonymous';
             if (!userId) {
@@ -221,7 +214,7 @@
             });
         };
 
-        window.addEventListener('load', initializeFirebase);
+        window.addEventListener('load', setupFirebase);
         submitNameButton.addEventListener('click', saveScore);
     </script>
 
@@ -530,4 +523,3 @@
     </script>
 </body>
 </html>
-"Updated Firebase Config"
