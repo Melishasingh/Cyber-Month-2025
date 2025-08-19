@@ -149,7 +149,7 @@ const App = () => {
     const [gameState, setGameState] = useState('menu');
     const [currentScenario, setCurrentScenario] = useState(null);
     const [score, setScore] = useState(0);
-    const [feedback, setFeedback] = useState({ message: '', isCorrect: null, clues: [], creature: '' });
+    const [feedback, setFeedback] = useState({ message: '', isCorrect: null, clues: [] });
     const [leaderboard, setLeaderboard] = useState([]);
     const [userId, setUserId] = useState(null);
     const [authReady, setAuthReady] = useState(false);
@@ -157,6 +157,7 @@ const App = () => {
     const [currentScenarioIndex, setCurrentScenarioIndex] = useState(0);
     const [playerName, setPlayerName] = useState('');
     const [phishFound, setPhishFound] = useState([]);
+    const [hasAnsweredCorrectly, setHasAnsweredCorrectly] = useState(false);
 
     // Firebase Auth and Firestore setup
     useEffect(() => {
@@ -226,50 +227,52 @@ const App = () => {
         let isCorrect = false;
         let pointsChange = 0;
         let feedbackMessage = '';
-        let feedbackCreature = '';
-
+        
         if (currentScenario.isPhish) {
             if (currentScenario.phishElements.includes(actionType) && !phishFound.includes(actionType)) {
                 isCorrect = true;
                 pointsChange = 5;
                 setPhishFound([...phishFound, actionType]);
                 feedbackMessage = phishFound.length === 0 ? `Correct! +${pointsChange}pts.` : `Correct again! +${pointsChange}pts.`;
-                feedbackCreature = 'fish';
-                setFeedback({ message: feedbackMessage, isCorrect: true, clues: [], creature: feedbackCreature });
+                setFeedback({ message: feedbackMessage, isCorrect: true, clues: [] });
             } else if (actionType === 'legit') {
                 isCorrect = false;
                 pointsChange = -1;
                 feedbackMessage = "Incorrect! -1pt. This is a phish.";
-                feedbackCreature = 'crab';
-                setFeedback({ message: feedbackMessage, isCorrect: false, clues: currentScenario.clues, creature: feedbackCreature });
+                setFeedback({ message: feedbackMessage, isCorrect: false, clues: currentScenario.clues });
             } else {
                  isCorrect = false;
                  pointsChange = -1;
                  feedbackMessage = "Incorrect. -1pt.";
-                 feedbackCreature = 'crab';
-                 setFeedback({ message: feedbackMessage, isCorrect: false, clues: [], creature: feedbackCreature });
+                 setFeedback({ message: feedbackMessage, isCorrect: false, clues: [] });
             }
         } else { // Legitimate scenario
             if (actionType === 'legit') {
                 isCorrect = true;
                 pointsChange = 5;
                 feedbackMessage = `Correct! +${pointsChange}pts.`;
-                feedbackCreature = 'fish';
-                setFeedback({ message: feedbackMessage, isCorrect: true, clues: [], creature: feedbackCreature });
+                setFeedback({ message: feedbackMessage, isCorrect: true, clues: [] });
             } else {
                 isCorrect = false;
                 pointsChange = -1;
                 feedbackMessage = "Incorrect. -1pt.";
-                feedbackCreature = 'crab';
-                setFeedback({ message: feedbackMessage, isCorrect: false, clues: [], creature: feedbackCreature });
+                setFeedback({ message: feedbackMessage, isCorrect: false, clues: [] });
             }
         }
         
         setScore(prevScore => Math.max(0, prevScore + pointsChange));
+        if (isCorrect && currentScenario.isPhish && phishFound.length === currentScenario.phishElements.length) {
+            setHasAnsweredCorrectly(true);
+        } else if (isCorrect && !currentScenario.isPhish) {
+            setHasAnsweredCorrectly(true);
+        } else {
+            setHasAnsweredCorrectly(false);
+        }
     };
 
     const goToNextScenario = () => {
         setPhishFound([]);
+        setHasAnsweredCorrectly(false);
         const nextIndex = currentScenarioIndex + 1;
         if (nextIndex < scenarios.length) {
             setCurrentScenarioIndex(nextIndex);
@@ -304,6 +307,7 @@ const App = () => {
         setCurrentScenarioIndex(0);
         setFeedback({ message: '', isCorrect: null, clues: [] });
         setPhishFound([]);
+        setHasAnsweredCorrectly(false);
     };
 
     const renderEmailContent = () => {
@@ -335,77 +339,9 @@ const App = () => {
         });
     };
 
-    // SVG for the animated fish
-    const fishSvg = (
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-24 h-24" viewBox="0 0 100 100">
-            <style>{`
-                .fish-body { fill: #81d4fa; }
-                .fish-fin { fill: #00bcd4; }
-                .fish-eye { fill: #212121; }
-                .fish-mouth { fill: #ff8a65; }
-                .fish-tail { fill: #00bcd4; }
-                .fish-face { transform-origin: 50px 50px; animation: face-float 2s infinite ease-in-out; }
-                .fish-fin-left, .fish-fin-right { transform-origin: 50% 50%; animation: fin-wiggle 1s infinite ease-in-out; }
-                .fish-mouth-path { transform-origin: 50% 50%; animation: mouth-wiggle 1s infinite ease-in-out; }
-                @keyframes face-float {
-                    0%, 100% { transform: translateY(0) rotate(0deg); }
-                    50% { transform: translateY(-5px) rotate(5deg); }
-                }
-                @keyframes fin-wiggle {
-                    0%, 100% { transform: scaleX(1); }
-                    50% { transform: scaleX(0.9); }
-                }
-                @keyframes mouth-wiggle {
-                    0%, 100% { transform: scaleY(1); }
-                    50% { transform: scaleY(0.8); }
-                }
-            `}</style>
-            <g className="fish-face">
-                <path className="fish-body" d="M30 50 C 40 30, 70 30, 80 50 C 70 70, 40 70, 30 50 Z" />
-                <path className="fish-tail" d="M80 50 L 90 40 L 90 60 L 80 50 Z" />
-                <path className="fish-fin fish-fin-left" d="M 45 45 Q 55 40, 55 50" />
-                <path className="fish-fin fish-fin-right" d="M 45 55 Q 55 60, 55 50" />
-                <circle className="fish-eye" cx="45" cy="45" r="3" />
-                <path className="fish-mouth fish-mouth-path" d="M 40 55 Q 45 60, 50 55" />
-            </g>
-        </svg>
-    );
-
-    // SVG for the animated crab
-    const crabSvg = (
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-24 h-24" viewBox="0 0 100 100">
-            <style>{`
-                .crab-body { fill: #FF5252; }
-                .crab-claw { fill: #D32F2F; }
-                .crab-eye { fill: #212121; }
-                .crab-face { transform-origin: 50px 50px; animation: scuttle 2s infinite ease-in-out; }
-                .crab-claw-left { transform-origin: 30% 40%; animation: claw-wiggle-left 1s infinite ease-in-out; }
-                .crab-claw-right { transform-origin: 70% 40%; animation: claw-wiggle-right 1s infinite ease-in-out; }
-                @keyframes scuttle {
-                    0%, 100% { transform: translateX(0px); }
-                    50% { transform: translateX(5px); }
-                }
-                @keyframes claw-wiggle-left {
-                    0%, 100% { transform: rotate(0deg); }
-                    50% { transform: rotate(15deg); }
-                }
-                @keyframes claw-wiggle-right {
-                    0%, 100% { transform: rotate(0deg); }
-                    50% { transform: rotate(-15deg); }
-                }
-            `}</style>
-            <g className="crab-face">
-                <path className="crab-body" d="M20 55 C 30 40, 70 40, 80 55 C 70 70, 30 70, 20 55 Z" />
-                <path className="crab-claw crab-claw-left" d="M25 55 Q 15 45, 10 35 Q 15 40, 25 55 Z" />
-                <path className="crab-claw crab-claw-right" d="M75 55 Q 85 45, 90 35 Q 85 40, 75 55 Z" />
-                <circle className="crab-eye" cx="35" cy="48" r="3" />
-                <circle className="crab-eye" cx="65" cy="48" r="3" />
-                <path className="crab-body" d="M 45 65 L 55 65 Q 50 70, 45 65 Z" />
-            </g>
-        </svg>
-    );
-
     const renderGameScreen = () => {
+        const canAdvance = (currentScenario.isPhish && phishFound.length === currentScenario.phishElements.length) || (!currentScenario.isPhish && feedback.isCorrect);
+        
         return (
             <div className="relative flex flex-col items-center p-8 bg-[#001f3f] rounded-3xl shadow-lg w-full max-w-2xl transform transition-all duration-300 border-4 border-[#00e5e5]">
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-3 bg-[#00e5e5] rounded-b-xl animate-pulse"></div>
@@ -428,13 +364,8 @@ const App = () => {
                         </div>
     
                         {feedback.message && (
-                            <div className="mt-6 flex flex-col items-center">
-                                <div className="text-5xl mb-2 animate-pop">
-                                    {feedback.creature === 'fish' ? fishSvg : crabSvg}
-                                </div>
-                                <div className={`p-4 text-center font-semibold rounded-lg transition-all duration-500 transform ${feedback.isCorrect ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
-                                    {feedback.message}
-                                </div>
+                            <div className={`mt-6 p-4 text-center font-semibold rounded-lg transition-all duration-500 transform ${feedback.isCorrect ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                                {feedback.message}
                             </div>
                         )}
                         {feedback.isCorrect === false && currentScenario.isPhish && (
