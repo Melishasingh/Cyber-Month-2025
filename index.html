@@ -31,7 +31,7 @@ const App = () => {
         storageBucket: "cyber-security-month.firebasestorage.app",
         messagingSenderId: "798324598459",
         appId: "1:798324598459:web:a71a03d1ea30eac92aeb9e",
-        measurementId: "G-39KS43N4R2"
+        measurementId: "G-39KS43N4R2" 
     };
 
     const allScenarios = [
@@ -128,19 +128,16 @@ const App = () => {
         return newArray;
     };
 
-    useEffect(() => {
-        // Initialize Firebase and set up auth listener
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+    const firebaseApp = initializeApp(firebaseConfig);
+    const auth = getAuth(firebaseApp);
+    const db = getFirestore(firebaseApp);
 
+    useEffect(() => {
         const setupAuth = async () => {
             try {
-                // Sign in anonymously to get a user ID
                 await signInAnonymously(auth);
             } catch (error) {
                 console.error("Anonymous sign-in failed:", error);
-                // Handle the case where sign-in fails
                 setIsAppReady(true);
             }
         };
@@ -149,7 +146,6 @@ const App = () => {
             if (user) {
                 setUserId(user.uid);
                 setIsAppReady(true);
-                // Start listening for leaderboard data once authenticated
                 const scoresCol = collection(db, 'scores');
                 const q = query(scoresCol, limit(10));
                 
@@ -158,7 +154,6 @@ const App = () => {
                     querySnapshot.forEach(doc => {
                         scores.push(doc.data());
                     });
-                    // Sort scores in memory to avoid index issues
                     scores.sort((a, b) => b.score - a.score);
                     setLeaderboardData(scores);
                 });
@@ -168,7 +163,6 @@ const App = () => {
             }
         });
 
-        // Initial setup for anonymous auth
         if (!userId) {
             setupAuth();
         }
@@ -190,7 +184,7 @@ const App = () => {
 
     const handleEndGame = () => {
         setShowNameModal(true);
-        setShowOverlay(false); // Hide the main overlay
+        setShowOverlay(false);
     };
 
     const handleClueClick = (e, clueData) => {
@@ -284,8 +278,6 @@ const App = () => {
             showMessage('User not authenticated. Score not saved.', 'red');
             return;
         }
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
         try {
             const docRef = doc(db, 'scores', userId);
             await setDoc(docRef, {
@@ -331,67 +323,4 @@ const App = () => {
                 )}
 
                 {showNameModal && (
-                    <div id="name-modal" className="absolute inset-0 bg-gray-950 bg-opacity-95 flex flex-col items-center justify-center text-center p-4 rounded-3xl">
-                        <h2 className="text-3xl md:text-4xl font-black text-cyan-400 mb-4">Submit Your Score</h2>
-                        <p className="text-lg md:text-xl text-gray-300 mb-6 max-w-prose">
-                            Enter your name to be entered into the prize drawing!
-                        </p>
-                        <input type="text" ref={playerNameInputRef} placeholder="Your Name" className="w-full max-w-sm p-4 text-center rounded-xl bg-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-4" />
-                        <button onClick={handleSaveScore} className="px-8 py-4 rounded-full bg-purple-600 hover:bg-purple-700 text-xl font-bold text-white transition-colors duration-200">
-                            Submit
-                        </button>
-                    </div>
-                )}
-
-                <div id="game-ui" className={isAppReady && !showOverlay && !showNameModal ? '' : 'hidden'}>
-                    <div className="flex justify-between items-center mb-6 text-lg md:text-xl font-bold text-gray-300">
-                        <span id="score-display">Score: {score}</span>
-                        <span id="round-display">Round: {currentRound + 1}/{scenarios.length}</span>
-                    </div>
-
-                    <div className="mb-6 bg-gray-900 p-4 rounded-xl border border-gray-700">
-                        <p className="text-gray-400 text-xs mb-2">Your Player ID (for the raffle):</p>
-                        <p id="user-id-display" className="font-mono text-xs sm:text-sm md:text-base break-all text-green-400 mb-4">{userId}</p>
-                        <h3 className="font-bold text-lg text-white mb-2">Leaderboard</h3>
-                        <div id="leaderboard" className="space-y-1 text-sm text-gray-300">
-                            {leaderboardData.length > 0 ? (
-                                leaderboardData.map((player, index) => (
-                                    <div key={index} className={`flex justify-between items-center p-2 rounded ${player.userId === userId ? 'bg-green-700 bg-opacity-40 border border-green-500' : ''}`}>
-                                        <span className="font-bold w-1/12">{index + 1}.</span>
-                                        <span className="w-8/12 font-mono break-all">{player.name || player.userId.substring(0, 8) + '...'}</span>
-                                        <span className="w-3/12 text-right font-bold text-lg">{player.score}</span>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-center text-gray-500">No scores yet. Be the first!</p>
-                            )}
-                        </div>
-                    </div>
-
-                    <div id="email-container" ref={emailContainerRef} className="bg-gray-900 border border-gray-700 rounded-xl p-6 md:p-8 min-h-[400px] overflow-auto">
-                        {currentRound < scenarios.length && (
-                            <div dangerouslySetInnerHTML={{ __html: scenarios[currentRound].emailContent }} 
-                                onClick={(e) => {
-                                    if (e.target.classList.contains('phish-clue')) {
-                                        handleClueClick(e, e.target.dataset.clue);
-                                    }
-                                }} 
-                            />
-                        )}
-                    </div>
-
-                    <div className="mt-8 flex justify-between items-center">
-                        <button id="hint-button" onClick={handleHint} disabled={hintUsedThisRound || hasSubmitted} className={`px-4 py-2 rounded-full bg-gray-600 hover:bg-gray-700 font-bold text-sm transition-colors duration-200 ${hintUsedThisRound || hasSubmitted ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                            Get Hint (-5 pts)
-                        </button>
-                        <button id="action-button" onClick={handleAction} disabled={hasSubmitted} className={`px-8 py-4 rounded-full font-bold transition-colors duration-200 ${hasClickedClue ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'} ${hasSubmitted ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                            {hasClickedClue ? 'Submit Phish' : 'Looks Legit'}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default App;
+                    <div id="name-modal" className="absolute inset-0 bg-gray-950 bg-opacity-95 flex flex-col items-center justify-cen
