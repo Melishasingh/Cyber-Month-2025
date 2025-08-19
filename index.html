@@ -1,452 +1,651 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Spot the Phish</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .phish-clue { cursor: pointer; transition: all 0.3s ease; }
-        .phish-clue:hover { text-shadow: 0 0 2px rgba(255, 255, 255, 0.5); transform: scale(1.02); }
-        .correct-answer { background-color: rgba(0, 255, 0, 0.3); border-bottom: 2px solid green; }
-        .incorrect-answer { background-color: rgba(255, 0, 0, 0.3); border-bottom: 2px solid red; }
-        .hint-highlight { background-color: rgba(255, 255, 0, 0.3); border-bottom: 2px solid yellow; }
-        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 40px; height: 40px; -webkit-animation: spin 2s linear infinite; animation: spin 2s linear infinite; }
-        @-webkit-keyframes spin { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-</head>
-<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4 md:p-8">
+import React, { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import {
+    getAuth,
+    signInWithCustomToken,
+    onAuthStateChanged,
+    signInAnonymously
+} from 'firebase/auth';
+import {
+    getFirestore,
+    collection,
+    addDoc,
+    query,
+    onSnapshot,
+    serverTimestamp,
+    doc,
+    getDoc,
+    setDoc
+} from 'firebase/firestore';
 
-    <!-- Game Container -->
-    <div class="bg-gray-800 rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl w-full relative">
-
-        <!-- Game Header -->
-        <div class="text-center mb-8">
-            <h1 class="text-3xl md:text-5xl font-extrabold text-cyan-400">Spot the Phish</h1>
-            <p class="text-gray-400 mt-2 text-sm md:text-base">Click on the hidden clues to identify phishing emails. Watch out for the legit ones!</p>
-        </div>
-
-        <!-- Game Interface -->
-        <div id="game-ui" class="hidden">
-            <!-- Score and Round Tracker -->
-            <div class="flex justify-between items-center mb-6 text-lg md:text-xl font-bold text-gray-300">
-                <span id="score-display">Score: 0</span>
-                <span id="round-display">Round: 1/5</span>
-            </div>
-
-            <!-- User ID and Leaderboard -->
-            <div class="mb-6 bg-gray-900 p-4 rounded-xl border border-gray-700">
-                <p class="text-gray-400 text-xs mb-2">Your Player ID (for the raffle):</p>
-                <p id="user-id-display" class="font-mono text-xs sm:text-sm md:text-base break-all text-green-400 mb-4"></p>
-                <h3 class="font-bold text-lg text-white mb-2">Leaderboard</h3>
-                <div id="leaderboard" class="space-y-1 text-sm text-gray-300">
-                    <p class="text-center text-gray-500">Loading leaderboard...</p>
-                </div>
-            </div>
-
-            <!-- Email Display Area -->
-            <div id="email-container" class="bg-gray-900 border border-gray-700 rounded-xl p-6 md:p-8 min-h-[400px] overflow-auto">
-                <!-- Content will be injected here by JavaScript -->
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="mt-8 flex justify-between items-center">
-                <button id="hint-button" class="px-4 py-2 rounded-full bg-gray-600 hover:bg-gray-700 font-bold text-sm transition-colors duration-200">
-                    Get Hint (-5 pts)
-                </button>
-                <button id="action-button" class="px-8 py-4 rounded-full bg-blue-600 hover:bg-blue-700 font-bold transition-colors duration-200">
-                    Looks Legit
-                </button>
-            </div>
-        </div>
-
-        <!-- Start/End Game Overlay -->
-        <div id="game-overlay" class="absolute inset-0 bg-gray-950 bg-opacity-95 flex flex-col items-center justify-center text-center p-4 rounded-3xl">
-            <h2 id="overlay-title" class="text-4xl md:text-6xl font-black text-white mb-4">Welcome to Spot the Phish</h2>
-            <p id="overlay-message" class="text-lg md:text-xl text-gray-300 mb-8 max-w-prose">Test your cyber-sleuthing skills! Your goal is to identify all the clues in the fake emails. Be careful—some are real. Let's see how many you can spot!</p>
-            <button id="start-button" class="px-8 py-4 rounded-full bg-purple-600 hover:bg-purple-700 text-xl font-bold text-white transition-colors duration-200">
-                Start Game
-            </button>
-        </div>
-
-        <!-- Name Submission Modal -->
-        <div id="name-modal" class="absolute inset-0 bg-gray-950 bg-opacity-95 flex flex-col items-center justify-center text-center p-4 rounded-3xl hidden">
-            <h2 class="text-3xl md:text-4xl font-black text-cyan-400 mb-4">Submit Your Score</h2>
-            <p class="text-lg md:text-xl text-gray-300 mb-6 max-w-prose">
-                Enter your name to be entered into the prize drawing!
-            </p>
-            <input type="text" id="player-name-input" placeholder="Your Name" class="w-full max-w-sm p-4 text-center rounded-xl bg-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-4" />
-            <button id="submit-name-button" class="px-8 py-4 rounded-full bg-purple-600 hover:bg-purple-700 text-xl font-bold text-white transition-colors duration-200">
-                Submit
-            </button>
-        </div>
-
-    </div>
-
-    <!-- Firebase SDK Imports -->
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
-        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
-        import { getFirestore, doc, setDoc, onSnapshot, collection, query, limit } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-
-        // IMPORTANT: YOUR FIREBASE CONFIGURATION
-        const firebaseConfig = {
-            apiKey: "AIzaSyCXGePW9HO2gZb-YXVOXbof_eKHv20PsNo",
-            authDomain: "cyber-security-month.firebaseapp.com",
-            projectId: "cyber-security-month",
-            storageBucket: "cyber-security-month.firebasestorage.app",
-            messagingSenderId: "798324598459",
-            appId: "1:798324598459:web:69f4b0a70eab58ea2aeb9e",
-            measurementId: "G-5ZF7YT08X0"
-        };
-        
-        // Initialize Firebase app and services globally
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        
-        const appId = firebaseConfig.projectId;
-        let userId = null;
-        let finalGameScore = 0;
-
-        // Game state variables and elements
-        let score = 0;
-        let currentRound = 0;
-        let clickedClues = [];
-        let scenarios = [];
-        let hasClickedClue = false;
-        let hasSubmitted = false;
-        let hintUsedThisRound = false;
-
-        const gameUI = document.getElementById('game-ui');
-        const overlay = document.getElementById('game-overlay');
-        const overlayTitle = document.getElementById('overlay-title');
-        const overlayMessage = document.getElementById('overlay-message');
-        const startButton = document.getElementById('start-button');
-        const scoreDisplay = document.getElementById('score-display');
-        const roundDisplay = document.getElementById('round-display');
-        const emailContainer = document.getElementById('email-container');
-        const actionButton = document.getElementById('action-button');
-        const hintButton = document.getElementById('hint-button');
-        const nameModal = document.getElementById('name-modal');
-        const playerNameInput = document.getElementById('player-name-input');
-        const submitNameButton = document.getElementById('submit-name-button');
-        const userIdDisplay = document.getElementById('user-id-display');
-        const leaderboard = document.getElementById('leaderboard');
-        const loadingOverlay = document.getElementById('loading-overlay');
-
-        // Game Data
-        const allScenarios = [
+// Game data with realistic phishing emails
+const scenarios = [
+    {
+        id: 1,
+        isPhish: true,
+        type: "Email",
+        sender: "support@amazon-notificaitions.com",
+        subject: "Your Recent Order Is On Hold",
+        phishElements: ["sender", "urgency", "link"],
+        bodyParts: [
+            { type: 'text', content: `<p class="my-4">Dear Valued Customer,</p>` },
+            { type: 'text', content: `<p class="my-4" data-phish-type="urgency">There was an issue processing your last order. To avoid cancellation, please confirm your payment information through the link below.</p>` },
             {
-                type: 'phishing',
-                emailContent: `<div class="text-base text-gray-300 space-y-4"><p><strong>Subject: Important Human Resources Update: New Policies</strong></p><p>Hi team,</p><p>We're making some updates to our company's Human Resources policies. To review and acknowledge the changes, please visit our new internal portal.</p><a href="#" class="text-blue-400 underline phish-clue" data-clue="unbranded-link">Access new portal here</a><p>For your security, you must log in using your company credentials.</p><p class="phish-clue" data-clue="vague-sender">Regards,<br>HR Department</p><p><small class="text-gray-500">This is an automated notification. Please do not reply.</small></p></div>`,
-                clues: [{ selector: '[data-clue="unbranded-link"]', description: 'The email links to a generic URL without any company branding in the domain.' }, { selector: '[data-clue="vague-sender"]', description: 'The sender is a vague "HR Department" instead of a specific person or team email address.' }]
+                type: 'link',
+                content: 'Confirm Payment Details',
+                target: 'https://www.amazon-update.biz/login',
+                clue: "The link points to a suspicious domain that is not amazon.com."
             },
+            { type: 'text', content: `<p class="my-4">Thank you for your business.</p><p>The Amazon Team</p>` },
+        ],
+        clues: [
+            "The sender's email address has a typo: 'notificaitions' instead of 'notifications'.",
+            "The message creates a false sense of urgency ('on hold', 'avoid cancellation').",
+            "The link points to a suspicious domain that is not amazon.com."
+        ]
+    },
+    {
+        id: 2,
+        isPhish: true,
+        type: "Email",
+        sender: "secure@paypal.com",
+        subject: "New Device Login Detected",
+        phishElements: ["link", "subject-urgency"],
+        bodyParts: [
+            { type: 'text', content: `<p class="my-4">Hello,</p>` },
+            { type: 'text', content: `<p class="my-4" data-phish-type="urgency">A new device has logged in to your PayPal account. If this was not you, please secure your account immediately by clicking the link below:</p>` },
             {
-                type: 'phishing',
-                emailContent: `<div class="text-base text-gray-300 space-y-4"><p><strong>Subject: Invoice #872322 is Past Due</strong></p><p>Dear Customer,</p><p>Your payment for invoice #872322 is now overdue. Please make an immediate payment to avoid additional fees.</p><p>To view the full invoice and pay, please download the attached document.<br><a href="#" class="text-blue-400 phish-clue" data-clue="suspicious-attachment">Download Invoice_872322.exe</a></p><p class="phish-clue" data-clue="no-context">If you have any questions, contact our finance department.</p><p>Thank you.</p><p>Finance Dept</p></div>`,
-                clues: [{ selector: '[data-clue="suspicious-attachment"]', description: 'The file extension is ".exe" which is a suspicious executable file.' }, { selector: '[data-clue="no-context"]', description: 'There is no context or personalized information about the invoice.' }]
+                type: 'link',
+                content: 'Secure Your Account Now',
+                target: 'https://bit.ly/3xY8aB5',
+                clue: "The link uses a URL shortener, which can hide a malicious destination."
             },
+            { type: 'text', content: `<p class="my-4">Thank you,<br>The PayPal Security Team</p>` }
+        ],
+        clues: [
+            "The email sender appears legitimate, but the link uses a URL shortener to hide a malicious link.",
+            "The subject line creates a sense of panic and urgency to trick you into clicking without thinking.",
+            "Legitimate security alerts from PayPal would direct you to the official site, not a third-party link shortener."
+        ]
+    },
+    {
+        id: 3,
+        isPhish: false,
+        type: "Email",
+        sender: "noreply@linkedin.com",
+        subject: "Your Network Has Mentioned You in a Post",
+        phishElements: [],
+        bodyParts: [
+            { type: 'text', content: `<p class="my-4">Hi John,</p>` },
+            { type: 'text', content: `<p class="my-4">Your connection, Sarah, mentioned you in a new post. View the conversation and join in!</p>` },
+            { type: 'text', content: `
+                <p class="my-4 text-center">
+                    <a href="#" class="inline-block px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">View Post</a>
+                </p>
+            `},
+            { type: 'text', content: `<p class="my-4">Best regards,<br>LinkedIn</p>` }
+        ],
+        clues: [
+            "The sender email 'noreply@linkedin.com' is a legitimate LinkedIn domain.",
+            "The tone is informative and friendly, not urgent or threatening.",
+            "The email's content is specific (mentions a connection by name) and provides a clear, verifiable action."
+        ]
+    },
+    {
+        id: 4,
+        isPhish: true,
+        type: "SMS",
+        sender: "555-0199",
+        subject: "URGENT: Your package is delayed",
+        phishElements: ["sender", "urgency", "link"],
+        bodyParts: [
+            { type: 'text', content: `FRM: FEDEX<br>MSG: <span class="cursor-pointer" data-phish-type="urgency">Your package has been delayed. To reschedule delivery, click the following link:<br></span> ` },
             {
-                type: 'legit',
-                emailContent: `<div class="text-base text-gray-300 space-y-4"><p><strong>Subject: Reminder: Building Maintenance Scheduled for Friday</strong></p><p>Hi everyone,</p><p>This is a reminder that scheduled building maintenance will take place this Friday, from 6 PM to 10 PM. During this time, you may experience brief interruptions to our network services.</p><p>No action is required on your part. We apologize for any inconvenience.</p><p>Thanks,<br>Facilities Team</p></div>`,
-                clues: []
-            },
-            {
-                type: 'phishing',
-                emailContent: `<div class="text-base text-gray-300 space-y-4"><p><strong>Subject: Action Required: Your account will be suspended if you do not verify</strong></p><p>Dear User,</p><p class="phish-clue" data-clue="strong-urgency">We noticed unusual activity on your account. To protect your data, we have temporarily locked your profile.</p><p>Please click on the link below and log in to verify your identity and unlock your account immediately:</p><a href="#" class="text-blue-400 underline phish-clue" data-clue="fake-domain">https://microsoft-login.services/verify-account</a><p>If you do not verify within 24 hours, your account will be permanently closed.</p><p>Thanks,<br>The Security Team</p></div>`,
-                clues: [{ selector: '[data-clue="strong-urgency"]', description: 'The tone is extremely urgent and tries to create a sense of panic to force a quick decision.' }, { selector: '[data-clue="fake-domain"]', description: 'The domain "microsoft-login.services" is not a legitimate Microsoft domain.' }]
-            },
-            {
-                type: 'legit',
-                emailContent: `<div class="text-base text-gray-300 space-y-4"><p><strong>Subject: Lunch & Learn: A New Approach to Project Management</strong></p><p>Hello team,</p><p>Join us next Thursday for a Lunch & Learn session with guest speaker Jane Doe to discuss new project management strategies. Lunch will be provided.</p><p><a href="https://yourcompany.com/internal-events/signup" class="text-blue-400 underline">Register to attend</a></p><p>Hope to see you there!</p><p>Regards,<br>Learning & Development Team</p></div>`,
-                clues: []
+                type: 'link',
+                content: 'fedex-delivery-status.com',
+                target: 'https://phishing-site.com',
+                clue: "The message uses an urgent tone to pressure you into clicking a link, a classic phish."
             }
-        ];
+        ],
+        clues: [
+            "The message comes from a generic phone number, not an official one.",
+            "The tone is urgent and threatening, designed to make you act without thinking.",
+            "The domain in the link is not the official fedex.com website."
+        ]
+    },
+    {
+        id: 5,
+        isPhish: false,
+        type: "Email",
+        sender: "no-reply@microsoft.com",
+        subject: "Your Microsoft account has been updated",
+        phishElements: [],
+        bodyParts: [
+            { type: 'text', content: `<p class="my-4">Dear User,</p>` },
+            { type: 'text', content: `<p class="my-4">This is a confirmation that your Microsoft account settings have been updated. If you did not make this change, you can review your recent activity in your account settings.</p>` },
+            { type: 'text', content: `<p class="my-4">Thank you,<br>The Microsoft Team</p>` }
+        ],
+        clues: [
+            "The email is sent from a legitimate Microsoft domain.",
+            "It is a simple confirmation, not an urgent alert, and provides a clear path to verify activity.",
+            "There are no links asking for personal information or demanding immediate action."
+        ]
+    }
+];
 
-        // Functions
-        const shuffleArray = (array) => {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
-            }
-        };
+// Firebase setup
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-        const startGame = () => {
-            score = 0;
-            currentRound = 0;
-            clickedClues = [];
-            hasClickedClue = false;
-            hasSubmitted = false;
-            hintUsedThisRound = false;
-            
-            shuffleArray(allScenarios);
-            scenarios = allScenarios.slice(0, 5);
+let app, db, auth;
+if (firebaseConfig) {
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+}
 
-            updateUI();
-            overlay.classList.add('hidden');
-            gameUI.classList.remove('hidden');
+// Main App component
+const App = () => {
+    const [gameState, setGameState] = useState('menu');
+    const [currentScenario, setCurrentScenario] = useState(null);
+    const [score, setScore] = useState(0);
+    const [feedback, setFeedback] = useState({ message: '', isCorrect: null, clues: [], creature: '' });
+    const [leaderboard, setLeaderboard] = useState([]);
+    const [userId, setUserId] = useState(null);
+    const [authReady, setAuthReady] = useState(false);
+    const [showLeaderboard, setShowLeaderboard] = useState(false);
+    const [currentScenarioIndex, setCurrentScenarioIndex] = useState(0);
+    const [playerName, setPlayerName] = useState('');
+    const [phishFound, setPhishFound] = useState([]);
 
-            displayScenario();
-        };
+    // Firebase Auth and Firestore setup
+    useEffect(() => {
+        if (!auth || !db) return;
 
-        const updateUI = () => {
-            scoreDisplay.textContent = `Score: ${score}`;
-            roundDisplay.textContent = `Round: ${currentRound + 1}/${scenarios.length}`;
-            if (hasClickedClue) {
-                actionButton.textContent = 'Submit Phish';
-                actionButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-                actionButton.classList.add('bg-red-600', 'hover:bg-red-700');
-            } else {
-                actionButton.textContent = 'Looks Legit';
-                actionButton.classList.remove('bg-red-600', 'hover:bg-red-700');
-                actionButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
-            }
-            actionButton.disabled = hasSubmitted;
-            actionButton.classList.toggle('cursor-not-allowed', hasSubmitted);
-            actionButton.classList.toggle('opacity-50', hasSubmitted);
-            
-            hintButton.disabled = hintUsedThisRound;
-            hintButton.classList.toggle('cursor-not-allowed', hintUsedThisRound);
-            hintButton.classList.toggle('opacity-50', hintUsedThisRound);
-        };
-
-        const displayScenario = () => {
-            if (currentRound >= scenarios.length) {
-                endGame();
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                try {
+                    if (typeof __initial_auth_token !== 'undefined') {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Error signing in:", error);
+                }
                 return;
             }
+            setUserId(user.uid);
+            setAuthReady(true);
 
-            emailContainer.innerHTML = '';
-            emailContainer.classList.remove('pointer-events-none');
-            
-            hasClickedClue = false;
-            hasSubmitted = false;
-            hintUsedThisRound = false;
+            const leaderboardPath = `/artifacts/${appId}/public/data/leaderboard`;
+            const q = collection(db, leaderboardPath);
 
-            const currentScenario = scenarios[currentRound];
-            emailContainer.innerHTML = currentScenario.emailContent;
-
-            emailContainer.querySelectorAll('.phish-clue').forEach(clueEl => {
-                clueEl.addEventListener('click', (e) => handleClueClick(e, clueEl));
-            });
-            updateUI();
-        };
-
-        const handleClueClick = (e, clueEl) => {
-            e.preventDefault(); 
-            if (hasSubmitted) return;
-
-            const currentScenario = scenarios[currentRound];
-            const clueData = clueEl.getAttribute('data-clue');
-            const foundClue = currentScenario.clues.find(c => c.selector.includes(clueData));
-
-            if (foundClue && !clickedClues.includes(clueData)) {
-                clickedClues.push(clueData);
-                score += 10;
-                clueEl.classList.add('correct-answer');
-                clueEl.style.textDecoration = 'line-through';
-                showMessage('Correct! ' + foundClue.description, 'green');
-                hasClickedClue = true;
-            } else if (!foundClue) {
-                score = Math.max(0, score - 5);
-                clueEl.classList.add('incorrect-answer');
-                showMessage('That\'s not a clue. Be careful!', 'red');
-                hasClickedClue = true;
-            }
-            
-            updateUI();
-        };
-
-        const handleAction = () => {
-            if (hasSubmitted) return;
-            hasSubmitted = true;
-            emailContainer.classList.add('pointer-events-none');
-
-            const currentScenario = scenarios[currentRound];
-            const allCluesFound = clickedClues.length === currentScenario.clues.length;
-
-            if (currentScenario.type === 'legit') {
-                 if (hasClickedClue) {
-                     score = Math.max(0, score - 20);
-                     showMessage('Incorrect. This was a legitimate email. Do not click on clues.', 'red');
-                 } else {
-                     score += 20;
-                     showMessage('Correct! This email looks legit.', 'green');
-                 }
-            } else {
-                 if (allCluesFound) {
-                     score += 10;
-                     showMessage('Great job! You found all the clues.', 'green');
-                 } else {
-                     score = Math.max(0, score - 15);
-                     showMessage(`Oops! You missed some clues. The correct answers were highlighted.`, 'red');
-                     currentScenario.clues.forEach(clue => {
-                         const clueEl = emailContainer.querySelector(clue.selector);
-                         if (clueEl && !clueEl.classList.contains('correct-answer')) {
-                            clueEl.classList.add('incorrect-answer');
-                         }
-                     });
-                 }
-            }
-            
-            actionButton.textContent = 'Next Email';
-            actionButton.disabled = false;
-            actionButton.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'bg-red-600', 'hover:bg-red-700');
-            actionButton.classList.add('bg-green-600', 'hover:bg-green-700');
-            actionButton.onclick = () => {
-                currentRound++;
-                clickedClues = [];
-                hasSubmitted = false;
-                displayScenario();
-            };
-        };
-
-        const handleHint = () => {
-            if (hintUsedThisRound || hasSubmitted) return;
-            
-            const currentScenario = scenarios[currentRound];
-            const unclickedClues = currentScenario.clues.filter(clue => !clickedClues.includes(clue.selector.replace('[data-clue="', '').replace('"]', '')));
-            
-            if (unclickedClues.length > 0) {
-                const firstUnclickedClue = unclickedClues[0];
-                const clueEl = emailContainer.querySelector(firstUnclickedClue.selector);
-                
-                clueEl.classList.add('hint-highlight');
-                score = Math.max(0, score - 5);
-                showMessage(`Hint used! A clue has been highlighted.`, 'yellow');
-                
-                hintUsedThisRound = true;
-                updateUI();
-            } else {
-                showMessage('No more clues to find!', 'gray');
-            }
-        };
-
-        const showMessage = (msg, color) => {
-            const messageBox = document.createElement('div');
-            messageBox.textContent = msg;
-            messageBox.className = `p-4 rounded-lg mt-4 text-center font-bold text-lg transition-all duration-300`;
-            
-            if (color === 'green') {
-                messageBox.classList.add('bg-green-600', 'text-white', 'shadow-md');
-            } else if (color === 'red') {
-                messageBox.classList.add('bg-red-600', 'text-white', 'shadow-md');
-            } else if (color === 'yellow') {
-                messageBox.classList.add('bg-yellow-500', 'text-gray-900', 'shadow-md');
-            }
-            
-            emailContainer.prepend(messageBox);
-            setTimeout(() => {
-                messageBox.remove();
-            }, 3000);
-        };
-
-        const endGame = () => {
-            gameUI.classList.add('hidden');
-            overlay.classList.add('hidden');
-            nameModal.classList.remove('hidden');
-            
-            finalGameScore = score;
-        };
-
-        const saveScore = async () => {
-            const playerName = playerNameInput.value.trim() || 'Anonymous';
-            if (!userId) {
-                console.error("User not authenticated. Score not saved.");
-                return;
-            }
-            try {
-                const docRef = doc(db, `scores`, userId);
-                await setDoc(docRef, {
-                    userId: userId,
-                    score: finalGameScore,
-                    name: playerName,
-                    timestamp: new Date()
-                });
-                console.log("Score saved successfully!");
-                nameModal.classList.add('hidden');
-                overlay.classList.remove('hidden');
-                overlayTitle.textContent = "Game Over!";
-                overlayMessage.innerHTML = `<p class="text-xl md:text-2xl font-bold mb-4">Your Final Score: <span class="text-cyan-400">${finalGameScore}</span></p><p>Your score has been submitted for the grand prize drawing. Good luck!</p>`;
-                startButton.textContent = 'Play Again';
-            } catch (e) {
-                console.error("Error adding document: ", e);
-                nameModal.classList.add('hidden');
-                overlay.classList.remove('hidden');
-                overlayTitle.textContent = "Error";
-                overlayMessage.textContent = "Score could not be saved to the leaderboard. Check your Firebase console for errors.";
-                startButton.textContent = 'Try Again';
-            }
-        };
-
-        const listenForLeaderboard = () => {
-            const scoresCol = collection(db, `scores`);
-            const q = query(scoresCol, limit(10));
-            onSnapshot(q, (querySnapshot) => {
+            const unsubscribeLeaderboard = onSnapshot(q, (querySnapshot) => {
                 const scores = [];
                 querySnapshot.forEach((doc) => {
-                    scores.push(doc.data());
-                });
-
-                scores.sort((a, b) => b.score - a.score);
-
-                leaderboard.innerHTML = '';
-                if (scores.length === 0) {
-                    leaderboard.innerHTML = '<p class="text-center text-gray-500">No scores yet. Be the first!</p>';
-                } else {
-                    scores.forEach((player, index) => {
-                        const row = document.createElement('div');
-                        row.className = 'flex justify-between items-center p-2 rounded';
-                        if (player.userId === userId) {
-                            row.classList.add('bg-green-700', 'bg-opacity-40', 'border', 'border-green-500');
-                        }
-                        const rank = index + 1;
-                        const nameDisplay = player.name || (player.userId ? player.userId.substring(0, 8) + '...' : 'Anonymous');
-                        row.innerHTML = `
-                            <span class="font-bold w-1/12">${rank}.</span>
-                            <span class="w-8/12 font-mono break-all">${nameDisplay}</span>
-                            <span class="w-3/12 text-right font-bold text-lg">${player.score}</span>
-                        `;
-                        leaderboard.appendChild(row);
+                    const data = doc.data();
+                    scores.push({
+                        id: doc.id,
+                        username: data.username,
+                        score: data.score,
+                        userId: data.userId
                     });
-                }
-            });
-        };
-
-        const setupFirebase = async () => {
-            loadingOverlay.classList.remove('hidden');
-            try {
-                await signInAnonymously(auth);
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        userIdDisplay.textContent = userId;
-                        loadingOverlay.classList.add('hidden');
-                        overlay.classList.remove('hidden');
-                        listenForLeaderboard();
-                    }
                 });
-            } catch (error) {
-                console.error("Error initializing Firebase:", error);
-                loadingOverlay.classList.add('hidden');
-                overlay.classList.remove('hidden');
-                overlayTitle.textContent = "Error";
-                overlayMessage.textContent = "Could not connect to the database. The game will run locally, but scores will not be saved. " + error.message;
-            }
+                scores.sort((a, b) => b.score - a.score);
+                setLeaderboard(scores);
+            }, (error) => {
+                console.error("Error fetching leaderboard:", error);
+            });
+            return () => {
+                unsubscribeLeaderboard();
+            };
+        });
+        return () => {
+            unsubscribe();
         };
+    }, [auth, db]);
 
-        // Event listeners
-        startButton.addEventListener('click', startGame);
-        actionButton.addEventListener('click', handleAction);
-        hintButton.addEventListener('click', handleHint);
-        submitNameButton.addEventListener('click', saveScore);
+    const startGame = () => {
+        setGameState('name_prompt');
+    };
 
-        // Initial setup
-        window.addEventListener('load', setupFirebase);
-    </script>
-</body>
-</html>
+    const handleNameSubmit = (e) => {
+        e.preventDefault();
+        if (playerName.trim() === '') return;
+        setScore(0);
+        setGameState('playing');
+        setCurrentScenarioIndex(0);
+        setCurrentScenario(scenarios[0]);
+        setFeedback({ message: '', isCorrect: null, clues: [] });
+    };
+
+    const handlePlayerAction = (actionType) => {
+        if (gameState !== 'playing') return;
+
+        let isCorrect = false;
+        let pointsChange = 0;
+        let feedbackMessage = '';
+        let feedbackCreature = '';
+
+        if (currentScenario.isPhish) {
+            if (currentScenario.phishElements.includes(actionType) && !phishFound.includes(actionType)) {
+                isCorrect = true;
+                pointsChange = 5;
+                setPhishFound([...phishFound, actionType]);
+                feedbackMessage = phishFound.length === 0 ? `Correct! +${pointsChange}pts.` : `Correct again! +${pointsChange}pts.`;
+                feedbackCreature = 'fish';
+                setFeedback({ message: feedbackMessage, isCorrect: true, clues: [], creature: feedbackCreature });
+            } else if (actionType === 'legit') {
+                isCorrect = false;
+                pointsChange = -1;
+                feedbackMessage = "Incorrect! -1pt. This is a phish.";
+                feedbackCreature = 'crab';
+                setFeedback({ message: feedbackMessage, isCorrect: false, clues: currentScenario.clues, creature: feedbackCreature });
+            } else {
+                 isCorrect = false;
+                 pointsChange = -1;
+                 feedbackMessage = "Incorrect. -1pt.";
+                 feedbackCreature = 'crab';
+                 setFeedback({ message: feedbackMessage, isCorrect: false, clues: [], creature: feedbackCreature });
+            }
+        } else { // Legitimate scenario
+            if (actionType === 'legit') {
+                isCorrect = true;
+                pointsChange = 5;
+                feedbackMessage = `Correct! +${pointsChange}pts.`;
+                feedbackCreature = 'fish';
+                setFeedback({ message: feedbackMessage, isCorrect: true, clues: [], creature: feedbackCreature });
+            } else {
+                isCorrect = false;
+                pointsChange = -1;
+                feedbackMessage = "Incorrect. -1pt.";
+                feedbackCreature = 'crab';
+                setFeedback({ message: feedbackMessage, isCorrect: false, clues: [], creature: feedbackCreature });
+            }
+        }
+        
+        setScore(prevScore => Math.max(0, prevScore + pointsChange));
+    };
+
+    const goToNextScenario = () => {
+        setPhishFound([]);
+        const nextIndex = currentScenarioIndex + 1;
+        if (nextIndex < scenarios.length) {
+            setCurrentScenarioIndex(nextIndex);
+            setCurrentScenario(scenarios[nextIndex]);
+            setFeedback({ message: '', isCorrect: null, clues: [] });
+        } else {
+            handleGameOver();
+        }
+    };
+
+    const handleGameOver = async () => {
+        setGameState('game_over');
+        if (!authReady || !userId || !db) return;
+
+        try {
+            const leaderboardPath = `/artifacts/${appId}/public/data/leaderboard`;
+            await addDoc(collection(db, leaderboardPath), {
+                userId: userId,
+                username: playerName,
+                score: score,
+                timestamp: serverTimestamp()
+            });
+        } catch (e) {
+            console.error("Error adding score to leaderboard:", e);
+        }
+    };
+
+    const resetGame = () => {
+        setGameState('menu');
+        setScore(0);
+        setCurrentScenario(null);
+        setCurrentScenarioIndex(0);
+        setFeedback({ message: '', isCorrect: null, clues: [] });
+        setPhishFound([]);
+    };
+
+    const renderEmailContent = () => {
+        if (!currentScenario || !currentScenario.bodyParts) return null;
+
+        return currentScenario.bodyParts.map((part, index) => {
+            let partClass = 'cursor-pointer'; 
+            
+            return (
+                <span
+                    key={index}
+                    className={partClass}
+                    dangerouslySetInnerHTML={{ __html: part.content }}
+                    onClick={() => {
+                        const isLink = part.type === 'link';
+                        const isUrgency = part.type === 'text' && part.content.includes("issue processing");
+                        
+                        if (isLink) {
+                            handlePlayerAction('link');
+                        } else if (isUrgency) {
+                            handlePlayerAction('urgency');
+                        } else {
+                            handlePlayerAction('body-text');
+                        }
+                    }}
+                >
+                </span>
+            );
+        });
+    };
+
+    // SVG for the animated fish
+    const fishSvg = (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-24 h-24" viewBox="0 0 100 100">
+            <style>{`
+                .fish-body { fill: #81d4fa; }
+                .fish-fin { fill: #00bcd4; }
+                .fish-eye { fill: #212121; }
+                .fish-mouth { fill: #ff8a65; }
+                .fish-tail { fill: #00bcd4; }
+                .fish-face { transform-origin: 50px 50px; animation: face-float 2s infinite ease-in-out; }
+                .fish-fin-left, .fish-fin-right { transform-origin: 50% 50%; animation: fin-wiggle 1s infinite ease-in-out; }
+                .fish-mouth-path { transform-origin: 50% 50%; animation: mouth-wiggle 1s infinite ease-in-out; }
+                @keyframes face-float {
+                    0%, 100% { transform: translateY(0) rotate(0deg); }
+                    50% { transform: translateY(-5px) rotate(5deg); }
+                }
+                @keyframes fin-wiggle {
+                    0%, 100% { transform: scaleX(1); }
+                    50% { transform: scaleX(0.9); }
+                }
+                @keyframes mouth-wiggle {
+                    0%, 100% { transform: scaleY(1); }
+                    50% { transform: scaleY(0.8); }
+                }
+            `}</style>
+            <g className="fish-face">
+                <path className="fish-body" d="M30 50 C 40 30, 70 30, 80 50 C 70 70, 40 70, 30 50 Z" />
+                <path className="fish-tail" d="M80 50 L 90 40 L 90 60 L 80 50 Z" />
+                <path className="fish-fin fish-fin-left" d="M 45 45 Q 55 40, 55 50" />
+                <path className="fish-fin fish-fin-right" d="M 45 55 Q 55 60, 55 50" />
+                <circle className="fish-eye" cx="45" cy="45" r="3" />
+                <path className="fish-mouth fish-mouth-path" d="M 40 55 Q 45 60, 50 55" />
+            </g>
+        </svg>
+    );
+
+    // SVG for the animated crab
+    const crabSvg = (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-24 h-24" viewBox="0 0 100 100">
+            <style>{`
+                .crab-body { fill: #FF5252; }
+                .crab-claw { fill: #D32F2F; }
+                .crab-eye { fill: #212121; }
+                .crab-face { transform-origin: 50px 50px; animation: scuttle 2s infinite ease-in-out; }
+                .crab-claw-left { transform-origin: 30% 40%; animation: claw-wiggle-left 1s infinite ease-in-out; }
+                .crab-claw-right { transform-origin: 70% 40%; animation: claw-wiggle-right 1s infinite ease-in-out; }
+                @keyframes scuttle {
+                    0%, 100% { transform: translateX(0px); }
+                    50% { transform: translateX(5px); }
+                }
+                @keyframes claw-wiggle-left {
+                    0%, 100% { transform: rotate(0deg); }
+                    50% { transform: rotate(15deg); }
+                }
+                @keyframes claw-wiggle-right {
+                    0%, 100% { transform: rotate(0deg); }
+                    50% { transform: rotate(-15deg); }
+                }
+            `}</style>
+            <g className="crab-face">
+                <path className="crab-body" d="M20 55 C 30 40, 70 40, 80 55 C 70 70, 30 70, 20 55 Z" />
+                <path className="crab-claw crab-claw-left" d="M25 55 Q 15 45, 10 35 Q 15 40, 25 55 Z" />
+                <path className="crab-claw crab-claw-right" d="M75 55 Q 85 45, 90 35 Q 85 40, 75 55 Z" />
+                <circle className="crab-eye" cx="35" cy="48" r="3" />
+                <circle className="crab-eye" cx="65" cy="48" r="3" />
+                <path className="crab-body" d="M 45 65 L 55 65 Q 50 70, 45 65 Z" />
+            </g>
+        </svg>
+    );
+
+    const renderGameScreen = () => {
+        return (
+            <div className="relative flex flex-col items-center p-8 bg-[#001f3f] rounded-3xl shadow-lg w-full max-w-2xl transform transition-all duration-300 border-4 border-[#00e5e5]">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-3 bg-[#00e5e5] rounded-b-xl animate-pulse"></div>
+                <div className="w-full flex justify-between items-center mb-6 text-xl font-bold text-[#64b5f6] border-b-2 border-[#64b5f6] pb-4">
+                    <span>SCORE: {score}</span>
+                </div>
+                {currentScenario && (
+                    <div className="w-full p-6 border-2 border-[#64b5f6] rounded-2xl bg-[#002b5c] shadow-inner text-white">
+                        <div
+                            className={`p-3 mb-4 bg-[#002244] rounded-md cursor-pointer border border-transparent hover:border-[#64b5f6]`}
+                            onClick={() => handlePlayerAction('sender')}
+                        >
+                            <p className="font-bold text-[#81d4fa]">FROM: <span className="text-white">{currentScenario.sender}</span></p>
+                            <p className="font-bold text-[#81d4fa]">SUBJ: <span className="text-white cursor-pointer" onClick={() => handlePlayerAction('subject-urgency')}>
+                                {currentScenario.subject}
+                            </span></p>
+                        </div>
+                        <div className="text-white leading-relaxed text-sm bg-[#002244] p-4 border border-[#64b5f6] rounded-lg overflow-y-auto max-h-96">
+                            {renderEmailContent()}
+                        </div>
+    
+                        {feedback.message && (
+                            <div className="mt-6 flex flex-col items-center">
+                                <div className="text-5xl mb-2 animate-pop">
+                                    {feedback.creature === 'fish' ? fishSvg : crabSvg}
+                                </div>
+                                <div className={`p-4 text-center font-semibold rounded-lg transition-all duration-500 transform ${feedback.isCorrect ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                                    {feedback.message}
+                                </div>
+                            </div>
+                        )}
+                        {feedback.isCorrect === false && currentScenario.isPhish && (
+                            <div className="mt-4 bg-[#001f3f] p-4 rounded-lg border border-[#64b5f6] text-[#b3e5fc]">
+                                <h3 className="font-bold mb-2">CLUES:</h3>
+                                <ul className="list-disc list-inside text-[#e1f5fe] text-sm">
+                                    {currentScenario.clues.map((clue, index) => (
+                                        <li key={index}>{clue}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+                )}
+                <div className="mt-8 flex space-x-4">
+                    <button
+                        onClick={goToNextScenario}
+                        className={`flex items-center justify-center px-8 py-3 bg-green-600 text-white font-bold rounded-full shadow-lg hover:bg-green-700 transition-all transform hover:scale-105 active:scale-95 text-lg`}
+                    >
+                        <span className="font-sans">Next Creature</span>
+                    </button>
+                    <button
+                        onClick={() => handlePlayerAction('legit')}
+                        className={`flex items-center justify-center px-8 py-3 bg-[#64b5f6] text-[#001f3f] font-bold rounded-full shadow-lg hover:bg-[#42a5f5] transition-all transform hover:scale-105 active:scale-95 text-lg`}
+                    >
+                        <span className="font-sans">This is Legitimate</span>
+                    </button>
+                </div>
+                <div className="mt-6 text-sm text-[#004e8a]">
+                    DIVER ID: <span className="font-mono text-xs text-[#64b5f6]">{userId || 'LOADING...'}</span>
+                </div>
+            </div>
+        );
+    };
+
+    const renderNamePrompt = () => (
+        <div className="flex flex-col items-center p-10 bg-[#001f3f] rounded-3xl shadow-lg w-full max-w-md text-center text-[#64b5f6] border-4 border-[#00e5e5]">
+            <h2 className="text-3xl font-extrabold mb-4 font-sans">:: DIVER_ID REQUIRED ::</h2>
+            <p className="text-gray-400 mb-6 font-sans">Enter your name to be entered into the raffle for a prize! Good luck, diver!</p>
+            <form onSubmit={handleNameSubmit} className="w-full">
+                <input
+                    type="text"
+                    value={playerName}
+                    onChange={(e) => setPlayerName(e.target.value)}
+                    placeholder="Diver Name"
+                    className="w-full px-4 py-3 bg-[#002b5c] text-[#b3e5fc] font-sans rounded-lg border border-[#64b5f6] focus:outline-none focus:ring-2 focus:ring-[#00e5e5] placeholder-[#64b5f6]"
+                    required
+                />
+                <button
+                    type="submit"
+                    className="mt-6 w-full px-8 py-4 bg-[#64b5f6] text-[#001f3f] font-bold text-lg rounded-full shadow-lg hover:bg-[#42a5f5] transition-all transform hover:scale-105 active:scale-95 animate-pulse"
+                >
+                    <span className="font-sans">BEGIN DIVE</span>
+                </button>
+            </form>
+        </div>
+    );
+
+    const renderLeaderboard = () => (
+        <div className="flex flex-col items-center p-8 bg-[#001f3f] rounded-3xl shadow-lg w-full max-w-lg mt-6 text-[#64b5f6] border-4 border-[#00e5e5]">
+            <h2 className="text-4xl font-extrabold mb-6 font-sans">:: DIVER_LOGS ::</h2>
+            <div className="w-full text-center">
+                {leaderboard.length > 0 ? (
+                    <table className="w-full text-left table-auto border-collapse font-sans">
+                        <thead>
+                            <tr className="bg-[#002b5c] text-[#81d4fa]">
+                                <th className="px-4 py-3 font-semibold">RANK</th>
+                                <th className="px-4 py-3 font-semibold">CALLSIGN</th>
+                                <th className="px-4 py-3 font-semibold text-right">SCORE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {leaderboard.slice(0, 10).map((entry, index) => (
+                                <tr key={entry.id} className={`${index % 2 === 0 ? 'bg-[#002244]' : 'bg-[#001f3f]'} text-white hover:bg-[#002b5c] transition-colors`}>
+                                    <td className="px-4 py-3 text-[#b3e5fc] font-bold">{index + 1}</td>
+                                    <td className="px-4 py-3 text-sm text-[#e1f5fe]">{entry.username}</td>
+                                    <td className="px-4 py-3 font-bold text-right text-[#b3e5fc]">{entry.score}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                ) : (
+                    <p className="text-center text-[#81d4fa] py-8 font-sans">NO LOGS FOUND.</p>
+                )}
+            </div>
+            <button onClick={() => setShowLeaderboard(false)} className="mt-8 px-8 py-4 bg-[#64b5f6] text-[#001f3f] font-bold rounded-full shadow-lg hover:bg-[#42a5f5] transition-all transform hover:scale-105 active:scale-95 font-sans">
+                <span className="font-sans">RETURN TO SUB</span>
+            </button>
+        </div>
+    );
+
+    const renderGameOverScreen = () => (
+        <div className="flex flex-col items-center p-10 bg-[#001f3f] rounded-3xl shadow-lg w-full max-w-md text-center text-[#64b5f6] border-4 border-[#00e5e5]">
+            <h2 className="text-4xl font-bold text-[#b3e5fc] mb-4 font-sans">:: DIVE COMPLETE ::</h2>
+            <p className="text-2xl text-[#81d4fa] mb-2 font-sans">FINAL SCORE:</p>
+            <p className="text-6xl font-extrabold text-[#00e5e5] mb-8 font-sans">{score}</p>
+            <button
+                onClick={resetGame}
+                className="px-8 py-4 bg-[#64b5f6] text-[#001f3f] font-bold rounded-full shadow-lg hover:bg-[#42a5f5] transition-all transform hover:scale-105 active:scale-95"
+            >
+                <span className="font-sans">BEGIN NEW DIVE</span>
+            </button>
+            <button
+                onClick={() => setShowLeaderboard(true)}
+                className="mt-4 px-8 py-4 bg-[#002b5c] text-[#64b5f6] font-bold rounded-full shadow-lg hover:bg-[#004e8a] transition-colors transform hover:scale-105 active:scale-95"
+            >
+                <span className="font-sans">VIEW LOGS</span>
+            </button>
+        </div>
+    );
+
+    return (
+        <div className="min-h-screen bg-[#000d1a] text-white flex flex-col items-center justify-center p-4">
+            <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet" />
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+            <style>
+                {`
+                body { font-family: 'Roboto', sans-serif; }
+                .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: .5; }
+                }
+                .phish-target { text-shadow: 0 0 5px #ff5252, 0 0 10px #ff5252; }
+                .phish-target:hover { color: #ef4444; }
+                .cursor-pointer { cursor: pointer; }
+                .animate-pop {
+                    animation: pop-up 0.5s ease-out forwards;
+                }
+                @keyframes pop-up {
+                    0% {
+                        transform: scale(0);
+                        opacity: 0;
+                    }
+                    100% {
+                        transform: scale(1);
+                        opacity: 1;
+                    }
+                }
+                .animate-fish-float {
+                    animation: fish-float 2s infinite ease-in-out;
+                }
+                @keyframes fish-float {
+                    0%, 100% { transform: translateY(0px) rotate(0deg); }
+                    50% { transform: translateY(-10px) rotate(5deg); }
+                }
+                .animate-crab-scuttle {
+                    animation: crab-scuttle 2s infinite ease-in-out;
+                }
+                @keyframes crab-scuttle {
+                    0%, 100% { transform: translateX(0px); }
+                    50% { transform: translateX(5px); }
+                }
+                .pufferfish-happy {
+                    transform-origin: 50% 50%;
+                }
+                .pufferfish-eye {
+                    animation: blink 3s infinite;
+                }
+                @keyframes blink {
+                    0%, 20%, 40%, 60%, 80%, 100% { transform: scaleY(1); }
+                    10%, 30%, 50%, 70%, 90% { transform: scaleY(0.1); }
+                }
+                .crab-angry {
+                    transform-origin: 50% 50%;
+                }
+                .crab-claw-left, .crab-claw-right {
+                    transform-origin: 50% 50%;
+                    animation: claw-wiggle 1s infinite ease-in-out;
+                }
+                @keyframes claw-wiggle {
+                    0%, 100% { transform: rotate(0deg); }
+                    50% { transform: rotate(15deg); }
+                }
+                `}
+            </style>
+            <h1 className="text-5xl font-extrabold mb-8 text-[#00e5e5] drop-shadow-lg">
+                <i className="fas fa-water mr-4 text-[#00e5e5]"></i>SPOT THE PHISH
+            </h1>
+
+            {showLeaderboard ? renderLeaderboard() : (
+                <>
+                    {gameState === 'menu' && (
+                        <div className="flex flex-col items-center p-10 bg-[#001f3f] rounded-3xl shadow-lg w-full max-w-md text-center text-[#64b5f6] border-4 border-[#00e5e5]">
+                            <h2 className="text-3xl font-extrabold mb-4 font-sans">BEGIN SUBMERGED OPS</h2>
+                            <p className="text-gray-400 mb-8 font-sans">YOUR MISSION: IDENTIFY THE MALICIOUS CREATURES LURKING IN THE DEEP.</p>
+                            <button
+                                onClick={startGame}
+                                className="px-10 py-5 bg-[#64b5f6] text-[#001f3f] font-bold text-lg rounded-full shadow-lg hover:bg-[#42a5f5] transition-all transform hover:scale-105 active:scale-95 animate-pulse"
+                            >
+                                <span className="font-sans">BEGIN DIVE</span>
+                            </button>
+                            <button
+                                onClick={() => setShowLeaderboard(true)}
+                                className="mt-6 px-8 py-4 bg-[#002b5c] text-[#64b5f6] font-bold rounded-full shadow-lg hover:bg-[#004e8a] transition-colors transform hover:scale-105 active:scale-95"
+                            >
+                                <span className="font-sans">VIEW LOGS</span>
+                            </button>
+                            <div className="mt-6 text-xs text-[#004e8a]">
+                                DIVER ID: <span className="font-mono text-xs text-[#64b5f6]">{userId || 'LOADING...'}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {gameState === 'name_prompt' && renderNamePrompt()}
+                    {gameState === 'playing' && renderGameScreen()}
+                    {gameState === 'game_over' && renderGameOverScreen()}
+                </>
+            )}
+        </div>
+    );
+};
+
+export default App;
