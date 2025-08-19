@@ -1,326 +1,452 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot, collection, query, limit } from 'firebase/firestore';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spot the Phish</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .phish-clue { cursor: pointer; transition: all 0.3s ease; }
+        .phish-clue:hover { text-shadow: 0 0 2px rgba(255, 255, 255, 0.5); transform: scale(1.02); }
+        .correct-answer { background-color: rgba(0, 255, 0, 0.3); border-bottom: 2px solid green; }
+        .incorrect-answer { background-color: rgba(255, 0, 0, 0.3); border-bottom: 2px solid red; }
+        .hint-highlight { background-color: rgba(255, 255, 0, 0.3); border-bottom: 2px solid yellow; }
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 40px; height: 40px; -webkit-animation: spin 2s linear infinite; animation: spin 2s linear infinite; }
+        @-webkit-keyframes spin { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4 md:p-8">
 
-const App = () => {
-    const [score, setScore] = useState(0);
-    const [currentRound, setCurrentRound] = useState(0);
-    const [clickedClues, setClickedClues] = useState([]);
-    const [scenarios, setScenarios] = useState([]);
-    const [hasClickedClue, setHasClickedClue] = useState(false);
-    const [hasSubmitted, setHasSubmitted] = useState(false);
-    const [hintUsedThisRound, setHintUsedThisRound] = useState(false);
-    const [userId, setUserId] = useState(null);
-    const [leaderboardData, setLeaderboardData] = useState([]);
-    const [isAppReady, setIsAppReady] = useState(false);
-    const [showOverlay, setShowOverlay] = useState(true);
-    const [showNameModal, setShowNameModal] = useState(false);
-    const [overlayTitle, setOverlayTitle] = useState("Welcome to Spot the Phish");
-    const [overlayMessage, setOverlayMessage] = useState("Test your cyber-sleuthing skills! Your goal is to identify all the clues in the fake emails. Be careful—some are real. Let's see how many you can spot!");
-    const [actionButtonText, setActionButtonText] = useState("Looks Legit");
+    <!-- Game Container -->
+    <div class="bg-gray-800 rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl w-full relative">
 
-    const emailContainerRef = useRef(null);
-    const playerNameInputRef = useRef(null);
+        <!-- Game Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl md:text-5xl font-extrabold text-cyan-400">Spot the Phish</h1>
+            <p class="text-gray-400 mt-2 text-sm md:text-base">Click on the hidden clues to identify phishing emails. Watch out for the legit ones!</p>
+        </div>
 
-    // IMPORTANT: YOUR FIREBASE CONFIGURATION
-    const firebaseConfig = {
-        apiKey: "AIzaSyCXGePW9HO2gZb-YXVOXbof_eKHv20PsNo",
-        authDomain: "cyber-security-month.firebaseapp.com",
-        projectId: "cyber-security-month",
-        storageBucket: "cyber-security-month.firebasestorage.app",
-        messagingSenderId: "798324598459",
-        appId: "1:798324598459:web:a71a03d1ea30eac92aeb9e",
-        measurementId: "G-39KS43N4R2" 
-    };
+        <!-- Game Interface -->
+        <div id="game-ui" class="hidden">
+            <!-- Score and Round Tracker -->
+            <div class="flex justify-between items-center mb-6 text-lg md:text-xl font-bold text-gray-300">
+                <span id="score-display">Score: 0</span>
+                <span id="round-display">Round: 1/5</span>
+            </div>
 
-    const allScenarios = [
-        {
-            type: 'phishing',
-            emailContent: `
-                <div class="text-base text-gray-300 space-y-4">
-                    <p><strong>Subject: Important Human Resources Update: New Policies</strong></p>
-                    <p>Hi team,</p>
-                    <p>We're making some updates to our company's Human Resources policies. To review and acknowledge the changes, please visit our new internal portal.</p>
-                    <a href="#" class="text-blue-400 underline phish-clue" data-clue="unbranded-link">Access new portal here</a>
-                    <p>For your security, you must log in using your company credentials.</p>
-                    <p class="phish-clue" data-clue="vague-sender">Regards,<br>HR Department</p>
-                    <p><small class="text-gray-500">This is an automated notification. Please do not reply.</small></p>
+            <!-- User ID and Leaderboard -->
+            <div class="mb-6 bg-gray-900 p-4 rounded-xl border border-gray-700">
+                <p class="text-gray-400 text-xs mb-2">Your Player ID (for the raffle):</p>
+                <p id="user-id-display" class="font-mono text-xs sm:text-sm md:text-base break-all text-green-400 mb-4"></p>
+                <h3 class="font-bold text-lg text-white mb-2">Leaderboard</h3>
+                <div id="leaderboard" class="space-y-1 text-sm text-gray-300">
+                    <p class="text-center text-gray-500">Loading leaderboard...</p>
                 </div>
-            `,
-            clues: [
-                { selector: '[data-clue="unbranded-link"]', description: 'The email links to a generic URL without any company branding in the domain.' },
-                { selector: '[data-clue="vague-sender"]', description: 'The sender is a vague "HR Department" instead of a specific person or team email address.' }
-            ]
-        },
-        {
-            type: 'phishing',
-            emailContent: `
-                <div class="text-base text-gray-300 space-y-4">
-                    <p><strong>Subject: Invoice #872322 is Past Due</strong></p>
-                    <p>Dear Customer,</p>
-                    <p>Your payment for invoice #872322 is now overdue. Please make an immediate payment to avoid additional fees.</p>
-                    <p>To view the full invoice and pay, please download the attached document.<br>
-                    <a href="#" class="text-blue-400 phish-clue" data-clue="suspicious-attachment">Download Invoice_872322.exe</a></p>
-                    <p class="phish-clue" data-clue="no-context">If you have any questions, contact our finance department.</p>
-                    <p>Thank you.</p>
-                    <p>Finance Dept</p>
-                </div>
-            `,
-            clues: [
-                { selector: '[data-clue="suspicious-attachment"]', description: 'The file extension is ".exe" which is a suspicious executable file.' },
-                { selector: '[data-clue="no-context"]', description: 'There is no context or personalized information about the invoice.' }
-            ]
-        },
-        {
-            type: 'legit',
-            emailContent: `
-                <div class="text-base text-gray-300 space-y-4">
-                    <p><strong>Subject: Reminder: Building Maintenance Scheduled for Friday</strong></p>
-                    <p>Hi everyone,</p>
-                    <p>This is a reminder that scheduled building maintenance will take place this Friday, from 6 PM to 10 PM. During this time, you may experience brief interruptions to our network services.</p>
-                    <p>No action is required on your part. We apologize for any inconvenience.</p>
-                    <p>Thanks,<br>Facilities Team</p>
-                </div>
-            `,
-            clues: []
-        },
-        {
-            type: 'phishing',
-            emailContent: `
-                <div class="text-base text-gray-300 space-y-4">
-                    <p><strong>Subject: Action Required: Your account will be suspended if you do not verify</strong></p>
-                    <p>Dear User,</p>
-                    <p class="phish-clue" data-clue="strong-urgency">We noticed unusual activity on your account. To protect your data, we have temporarily locked your profile.</p>
-                    <p>Please click on the link below and log in to verify your identity and unlock your account immediately:</p>
-                    <a href="#" class="text-blue-400 underline phish-clue" data-clue="fake-domain">https://microsoft-login.services/verify-account</a>
-                    <p>If you do not verify within 24 hours, your account will be permanently closed.</p>
-                    <p>Thanks,<br>The Security Team</p>
-                </div>
-            `,
-            clues: [
-                { selector: '[data-clue="strong-urgency"]', description: 'The tone is extremely urgent and tries to create a sense of panic to force a quick decision.' },
-                { selector: '[data-clue="fake-domain"]', description: 'The domain "microsoft-login.services" is not a legitimate Microsoft domain.' }
-            ]
-        },
-        {
-            type: 'legit',
-            emailContent: `
-                <div class="text-base text-gray-300 space-y-4">
-                    <p><strong>Subject: Lunch & Learn: A New Approach to Project Management</strong></p>
-                    <p>Hello team,</p>
-                    <p>Join us next Thursday for a Lunch & Learn session with guest speaker Jane Doe to discuss new project management strategies. Lunch will be provided.</p>
-                    <p><a href="https://yourcompany.com/internal-events/signup" class="text-blue-400 underline">Register to attend</a></p>
-                    <p>Hope to see you there!</p>
-                    <p>Regards,<br>Learning & Development Team</p>
-                </div>
-            `,
-            clues: []
-        }
-    ];
-    
-    const shuffleArray = (array) => {
-        let newArray = [...array];
-        for (let i = newArray.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-        }
-        return newArray;
-    };
+            </div>
 
-    const firebaseApp = initializeApp(firebaseConfig);
-    const auth = getAuth(firebaseApp);
-    const db = getFirestore(firebaseApp);
+            <!-- Email Display Area -->
+            <div id="email-container" class="bg-gray-900 border border-gray-700 rounded-xl p-6 md:p-8 min-h-[400px] overflow-auto">
+                <!-- Content will be injected here by JavaScript -->
+            </div>
 
-    useEffect(() => {
-        const setupAuth = async () => {
-            try {
-                await signInAnonymously(auth);
-            } catch (error) {
-                console.error("Anonymous sign-in failed:", error);
-                setIsAppReady(true);
-            }
+            <!-- Action Buttons -->
+            <div class="mt-8 flex justify-between items-center">
+                <button id="hint-button" class="px-4 py-2 rounded-full bg-gray-600 hover:bg-gray-700 font-bold text-sm transition-colors duration-200">
+                    Get Hint (-5 pts)
+                </button>
+                <button id="action-button" class="px-8 py-4 rounded-full bg-blue-600 hover:bg-blue-700 font-bold transition-colors duration-200">
+                    Looks Legit
+                </button>
+            </div>
+        </div>
+
+        <!-- Start/End Game Overlay -->
+        <div id="game-overlay" class="absolute inset-0 bg-gray-950 bg-opacity-95 flex flex-col items-center justify-center text-center p-4 rounded-3xl">
+            <h2 id="overlay-title" class="text-4xl md:text-6xl font-black text-white mb-4">Welcome to Spot the Phish</h2>
+            <p id="overlay-message" class="text-lg md:text-xl text-gray-300 mb-8 max-w-prose">Test your cyber-sleuthing skills! Your goal is to identify all the clues in the fake emails. Be careful—some are real. Let's see how many you can spot!</p>
+            <button id="start-button" class="px-8 py-4 rounded-full bg-purple-600 hover:bg-purple-700 text-xl font-bold text-white transition-colors duration-200">
+                Start Game
+            </button>
+        </div>
+
+        <!-- Name Submission Modal -->
+        <div id="name-modal" class="absolute inset-0 bg-gray-950 bg-opacity-95 flex flex-col items-center justify-center text-center p-4 rounded-3xl hidden">
+            <h2 class="text-3xl md:text-4xl font-black text-cyan-400 mb-4">Submit Your Score</h2>
+            <p class="text-lg md:text-xl text-gray-300 mb-6 max-w-prose">
+                Enter your name to be entered into the prize drawing!
+            </p>
+            <input type="text" id="player-name-input" placeholder="Your Name" class="w-full max-w-sm p-4 text-center rounded-xl bg-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-4" />
+            <button id="submit-name-button" class="px-8 py-4 rounded-full bg-purple-600 hover:bg-purple-700 text-xl font-bold text-white transition-colors duration-200">
+                Submit
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, limit } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
+
+        // IMPORTANT: YOUR FIREBASE CONFIGURATION
+        const firebaseConfig = {
+            apiKey: "AIzaSyCXGePW9HO2gZb-YXVOXbof_eKHv20PsNo",
+            authDomain: "cyber-security-month.firebaseapp.com",
+            projectId: "cyber-security-month",
+            storageBucket: "cyber-security-month.firebasestorage.app",
+            messagingSenderId: "798324598459",
+            appId: "1:798324598459:web:69f4b0a70eab58ea2aeb9e",
+            measurementId: "G-5ZF7YT08X0"
         };
         
-        const unsubscribe = onAuthStateChanged(auth, user => {
-            if (user) {
-                setUserId(user.uid);
-                setIsAppReady(true);
-                const scoresCol = collection(db, 'scores');
-                const q = query(scoresCol, limit(10));
-                
-                return onSnapshot(q, (querySnapshot) => {
-                    const scores = [];
-                    querySnapshot.forEach(doc => {
-                        scores.push(doc.data());
-                    });
-                    scores.sort((a, b) => b.score - a.score);
-                    setLeaderboardData(scores);
-                });
-            } else {
-                setUserId(null);
-                setIsAppReady(true);
+        // Initialize Firebase app and services globally
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        const appId = firebaseConfig.projectId;
+        let userId = null;
+        let finalGameScore = 0;
+
+        // Game state variables and elements
+        let score = 0;
+        let currentRound = 0;
+        let clickedClues = [];
+        let scenarios = [];
+        let hasClickedClue = false;
+        let hasSubmitted = false;
+        let hintUsedThisRound = false;
+
+        const gameUI = document.getElementById('game-ui');
+        const overlay = document.getElementById('game-overlay');
+        const overlayTitle = document.getElementById('overlay-title');
+        const overlayMessage = document.getElementById('overlay-message');
+        const startButton = document.getElementById('start-button');
+        const scoreDisplay = document.getElementById('score-display');
+        const roundDisplay = document.getElementById('round-display');
+        const emailContainer = document.getElementById('email-container');
+        const actionButton = document.getElementById('action-button');
+        const hintButton = document.getElementById('hint-button');
+        const nameModal = document.getElementById('name-modal');
+        const playerNameInput = document.getElementById('player-name-input');
+        const submitNameButton = document.getElementById('submit-name-button');
+        const userIdDisplay = document.getElementById('user-id-display');
+        const leaderboard = document.getElementById('leaderboard');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        // Game Data
+        const allScenarios = [
+            {
+                type: 'phishing',
+                emailContent: `<div class="text-base text-gray-300 space-y-4"><p><strong>Subject: Important Human Resources Update: New Policies</strong></p><p>Hi team,</p><p>We're making some updates to our company's Human Resources policies. To review and acknowledge the changes, please visit our new internal portal.</p><a href="#" class="text-blue-400 underline phish-clue" data-clue="unbranded-link">Access new portal here</a><p>For your security, you must log in using your company credentials.</p><p class="phish-clue" data-clue="vague-sender">Regards,<br>HR Department</p><p><small class="text-gray-500">This is an automated notification. Please do not reply.</small></p></div>`,
+                clues: [{ selector: '[data-clue="unbranded-link"]', description: 'The email links to a generic URL without any company branding in the domain.' }, { selector: '[data-clue="vague-sender"]', description: 'The sender is a vague "HR Department" instead of a specific person or team email address.' }]
+            },
+            {
+                type: 'phishing',
+                emailContent: `<div class="text-base text-gray-300 space-y-4"><p><strong>Subject: Invoice #872322 is Past Due</strong></p><p>Dear Customer,</p><p>Your payment for invoice #872322 is now overdue. Please make an immediate payment to avoid additional fees.</p><p>To view the full invoice and pay, please download the attached document.<br><a href="#" class="text-blue-400 phish-clue" data-clue="suspicious-attachment">Download Invoice_872322.exe</a></p><p class="phish-clue" data-clue="no-context">If you have any questions, contact our finance department.</p><p>Thank you.</p><p>Finance Dept</p></div>`,
+                clues: [{ selector: '[data-clue="suspicious-attachment"]', description: 'The file extension is ".exe" which is a suspicious executable file.' }, { selector: '[data-clue="no-context"]', description: 'There is no context or personalized information about the invoice.' }]
+            },
+            {
+                type: 'legit',
+                emailContent: `<div class="text-base text-gray-300 space-y-4"><p><strong>Subject: Reminder: Building Maintenance Scheduled for Friday</strong></p><p>Hi everyone,</p><p>This is a reminder that scheduled building maintenance will take place this Friday, from 6 PM to 10 PM. During this time, you may experience brief interruptions to our network services.</p><p>No action is required on your part. We apologize for any inconvenience.</p><p>Thanks,<br>Facilities Team</p></div>`,
+                clues: []
+            },
+            {
+                type: 'phishing',
+                emailContent: `<div class="text-base text-gray-300 space-y-4"><p><strong>Subject: Action Required: Your account will be suspended if you do not verify</strong></p><p>Dear User,</p><p class="phish-clue" data-clue="strong-urgency">We noticed unusual activity on your account. To protect your data, we have temporarily locked your profile.</p><p>Please click on the link below and log in to verify your identity and unlock your account immediately:</p><a href="#" class="text-blue-400 underline phish-clue" data-clue="fake-domain">https://microsoft-login.services/verify-account</a><p>If you do not verify within 24 hours, your account will be permanently closed.</p><p>Thanks,<br>The Security Team</p></div>`,
+                clues: [{ selector: '[data-clue="strong-urgency"]', description: 'The tone is extremely urgent and tries to create a sense of panic to force a quick decision.' }, { selector: '[data-clue="fake-domain"]', description: 'The domain "microsoft-login.services" is not a legitimate Microsoft domain.' }]
+            },
+            {
+                type: 'legit',
+                emailContent: `<div class="text-base text-gray-300 space-y-4"><p><strong>Subject: Lunch & Learn: A New Approach to Project Management</strong></p><p>Hello team,</p><p>Join us next Thursday for a Lunch & Learn session with guest speaker Jane Doe to discuss new project management strategies. Lunch will be provided.</p><p><a href="https://yourcompany.com/internal-events/signup" class="text-blue-400 underline">Register to attend</a></p><p>Hope to see you there!</p><p>Regards,<br>Learning & Development Team</p></div>`,
+                clues: []
             }
-        });
+        ];
 
-        if (!userId) {
-            setupAuth();
-        }
+        // Functions
+        const shuffleArray = (array) => {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        };
 
-        return () => unsubscribe();
-    }, [firebaseConfig, userId]);
+        const startGame = () => {
+            score = 0;
+            currentRound = 0;
+            clickedClues = [];
+            hasClickedClue = false;
+            hasSubmitted = false;
+            hintUsedThisRound = false;
+            
+            shuffleArray(allScenarios);
+            scenarios = allScenarios.slice(0, 5);
 
-    const handleStartGame = () => {
-        setScore(0);
-        setCurrentRound(0);
-        setClickedClues([]);
-        setScenarios(shuffleArray(allScenarios).slice(0, 5));
-        setHasClickedClue(false);
-        setHasSubmitted(false);
-        setHintUsedThisRound(false);
-        setShowOverlay(false);
-        setShowNameModal(false);
-    };
+            updateUI();
+            overlay.classList.add('hidden');
+            gameUI.classList.remove('hidden');
 
-    const handleEndGame = () => {
-        setShowNameModal(true);
-        setShowOverlay(false);
-    };
+            displayScenario();
+        };
 
-    const handleClueClick = (e, clueData) => {
-        e.preventDefault();
-        if (hasSubmitted || !isAppReady || currentRound >= scenarios.length) return;
-
-        const currentScenario = scenarios[currentRound];
-        const foundClue = currentScenario.clues.find(c => c.selector.includes(clueData));
-
-        if (foundClue && !clickedClues.includes(clueData)) {
-            const newClickedClues = [...clickedClues, clueData];
-            setClickedClues(newClickedClues);
-            setScore(prevScore => prevScore + 10);
-            showMessage('Correct! ' + foundClue.description, 'green');
-            setHasClickedClue(true);
-        } else if (!foundClue) {
-            setScore(prevScore => Math.max(0, prevScore - 5));
-            showMessage('That\'s not a clue. Be careful!', 'red');
-            setHasClickedClue(true);
-        }
-    };
-
-    const handleAction = () => {
-        if (hasSubmitted || !isAppReady || currentRound >= scenarios.length) return;
-
-        setHasSubmitted(true);
-        const currentScenario = scenarios[currentRound];
-        const allCluesFound = clickedClues.length === currentScenario.clues.length;
-
-        if (currentScenario.type === 'legit') {
+        const updateUI = () => {
+            scoreDisplay.textContent = `Score: ${score}`;
+            roundDisplay.textContent = `Round: ${currentRound + 1}/${scenarios.length}`;
             if (hasClickedClue) {
-                setScore(prevScore => Math.max(0, prevScore - 20));
-                showMessage('Incorrect. This was a legitimate email. Do not click on clues.', 'red');
+                actionButton.textContent = 'Submit Phish';
+                actionButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                actionButton.classList.add('bg-red-600', 'hover:bg-red-700');
             } else {
-                setScore(prevScore => prevScore + 20);
-                showMessage('Correct! This email looks legit.', 'green');
+                actionButton.textContent = 'Looks Legit';
+                actionButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                actionButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
             }
-        } else {
-            if (allCluesFound) {
-                setScore(prevScore => prevScore + 10);
-                showMessage('Great job! You found all the clues.', 'green');
-            } else {
-                setScore(prevScore => Math.max(0, prevScore - 15));
-                showMessage(`Oops! You missed some clues. The correct answers were highlighted.`, 'red');
+            actionButton.disabled = hasSubmitted;
+            actionButton.classList.toggle('cursor-not-allowed', hasSubmitted);
+            actionButton.classList.toggle('opacity-50', hasSubmitted);
+            
+            hintButton.disabled = hintUsedThisRound;
+            hintButton.classList.toggle('cursor-not-allowed', hintUsedThisRound);
+            hintButton.classList.toggle('opacity-50', hintUsedThisRound);
+        };
+
+        const displayScenario = () => {
+            if (currentRound >= scenarios.length) {
+                endGame();
+                return;
             }
-        }
 
-        setTimeout(() => {
-            if (currentRound + 1 >= scenarios.length) {
-                handleEndGame();
-            } else {
-                setCurrentRound(prevRound => prevRound + 1);
-                setClickedClues([]);
-                setHasClickedClue(false);
-                setHasSubmitted(false);
-                setHintUsedThisRound(false);
-            }
-        }, 3000);
-    };
+            emailContainer.innerHTML = '';
+            emailContainer.classList.remove('pointer-events-none');
+            
+            hasClickedClue = false;
+            hasSubmitted = false;
+            hintUsedThisRound = false;
 
-    const handleHint = () => {
-        if (hintUsedThisRound || hasSubmitted || currentRound >= scenarios.length) return;
-        const currentScenario = scenarios[currentRound];
-        const unclickedClues = currentScenario.clues.filter(clue => !clickedClues.includes(clue.selector.replace('[data-clue="', '').replace('"]', '')));
+            const currentScenario = scenarios[currentRound];
+            emailContainer.innerHTML = currentScenario.emailContent;
 
-        if (unclickedClues.length > 0) {
-            setScore(prevScore => Math.max(0, prevScore - 5));
-            showMessage(`Hint used! One clue has been highlighted.`, 'yellow');
-            setHintUsedThisRound(true);
-        } else {
-            showMessage('No more clues to find!', 'gray');
-        }
-    };
-    
-    const showMessage = (msg, color) => {
-        const messageBox = document.createElement('div');
-        messageBox.textContent = msg;
-        messageBox.className = `p-4 rounded-lg mt-4 text-center font-bold text-lg transition-all duration-300`;
-        if (color === 'green') messageBox.classList.add('bg-green-600', 'text-white', 'shadow-md');
-        if (color === 'red') messageBox.classList.add('bg-red-600', 'text-white', 'shadow-md');
-        if (color === 'yellow') messageBox.classList.add('bg-yellow-500', 'text-gray-900', 'shadow-md');
-        if (emailContainerRef.current) {
-            emailContainerRef.current.prepend(messageBox);
-        }
-        setTimeout(() => messageBox.remove(), 3000);
-    };
-
-    const handleSaveScore = async () => {
-        const playerName = playerNameInputRef.current.value.trim() || 'Anonymous';
-        if (!userId) {
-            showMessage('User not authenticated. Score not saved.', 'red');
-            return;
-        }
-        try {
-            const docRef = doc(db, 'scores', userId);
-            await setDoc(docRef, {
-                userId,
-                score,
-                name: playerName,
-                timestamp: new Date()
+            emailContainer.querySelectorAll('.phish-clue').forEach(clueEl => {
+                clueEl.addEventListener('click', (e) => handleClueClick(e, clueEl));
             });
-            showMessage('Score saved successfully!', 'green');
-            setShowNameModal(false);
-            setShowOverlay(true);
-            setOverlayTitle('Game Over!');
-            setOverlayMessage(`Your Final Score: ${score}. Your score has been submitted for the grand prize drawing. Good luck!`);
-        } catch (e) {
-            console.error("Error adding document: ", e);
-            showMessage('Score could not be saved. Please check your Firebase console.', 'red');
-        }
-    };
+            updateUI();
+        };
 
-    return (
-        <div className="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4 md:p-8">
-            <div className="bg-gray-800 rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl w-full relative">
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl md:text-5xl font-extrabold text-cyan-400">Spot the Phish</h1>
-                    <p className="text-gray-400 mt-2 text-sm md:text-base">Click on the hidden clues to identify phishing emails. Watch out for the legit ones!</p>
-                </div>
+        const handleClueClick = (e, clueEl) => {
+            e.preventDefault(); 
+            if (hasSubmitted) return;
 
-                {!isAppReady && (
-                    <div id="loading-overlay" className="absolute inset-0 bg-gray-950 bg-opacity-95 flex flex-col items-center justify-center text-center p-4 rounded-3xl">
-                        <div className="loader"></div>
-                        <p className="mt-4 text-gray-400 text-lg">Connecting to server...</p>
-                    </div>
-                )}
+            const currentScenario = scenarios[currentRound];
+            const clueData = clueEl.getAttribute('data-clue');
+            const foundClue = currentScenario.clues.find(c => c.selector.includes(clueData));
 
-                {showOverlay && (
-                    <div id="game-overlay" className="absolute inset-0 bg-gray-950 bg-opacity-95 flex flex-col items-center justify-center text-center p-4 rounded-3xl">
-                        <h2 id="overlay-title" className="text-4xl md:text-6xl font-black text-white mb-4">{overlayTitle}</h2>
-                        <p id="overlay-message" className="text-lg md:text-xl text-gray-300 mb-8 max-w-prose">{overlayMessage}</p>
-                        <button id="start-button" onClick={handleStartGame} className="px-8 py-4 rounded-full bg-purple-600 hover:bg-purple-700 text-xl font-bold text-white transition-colors duration-200">
-                            {overlayTitle.includes('Over') ? 'Play Again' : 'Start Game'}
-                        </button>
-                    </div>
-                )}
+            if (foundClue && !clickedClues.includes(clueData)) {
+                clickedClues.push(clueData);
+                score += 10;
+                clueEl.classList.add('correct-answer');
+                clueEl.style.textDecoration = 'line-through';
+                showMessage('Correct! ' + foundClue.description, 'green');
+                hasClickedClue = true;
+            } else if (!foundClue) {
+                score = Math.max(0, score - 5);
+                clueEl.classList.add('incorrect-answer');
+                showMessage('That\'s not a clue. Be careful!', 'red');
+                hasClickedClue = true;
+            }
+            
+            updateUI();
+        };
 
-                {showNameModal && (
-                    <div id="name-modal" className="absolute inset-0 bg-gray-950 bg-opacity-95 flex flex-col items-center justify-cen
+        const handleAction = () => {
+            if (hasSubmitted) return;
+            hasSubmitted = true;
+            emailContainer.classList.add('pointer-events-none');
+
+            const currentScenario = scenarios[currentRound];
+            const allCluesFound = clickedClues.length === currentScenario.clues.length;
+
+            if (currentScenario.type === 'legit') {
+                 if (hasClickedClue) {
+                     score = Math.max(0, score - 20);
+                     showMessage('Incorrect. This was a legitimate email. Do not click on clues.', 'red');
+                 } else {
+                     score += 20;
+                     showMessage('Correct! This email looks legit.', 'green');
+                 }
+            } else {
+                 if (allCluesFound) {
+                     score += 10;
+                     showMessage('Great job! You found all the clues.', 'green');
+                 } else {
+                     score = Math.max(0, score - 15);
+                     showMessage(`Oops! You missed some clues. The correct answers were highlighted.`, 'red');
+                     currentScenario.clues.forEach(clue => {
+                         const clueEl = emailContainer.querySelector(clue.selector);
+                         if (clueEl && !clueEl.classList.contains('correct-answer')) {
+                            clueEl.classList.add('incorrect-answer');
+                         }
+                     });
+                 }
+            }
+            
+            actionButton.textContent = 'Next Email';
+            actionButton.disabled = false;
+            actionButton.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'bg-red-600', 'hover:bg-red-700');
+            actionButton.classList.add('bg-green-600', 'hover:bg-green-700');
+            actionButton.onclick = () => {
+                currentRound++;
+                clickedClues = [];
+                hasSubmitted = false;
+                displayScenario();
+            };
+        };
+
+        const handleHint = () => {
+            if (hintUsedThisRound || hasSubmitted) return;
+            
+            const currentScenario = scenarios[currentRound];
+            const unclickedClues = currentScenario.clues.filter(clue => !clickedClues.includes(clue.selector.replace('[data-clue="', '').replace('"]', '')));
+            
+            if (unclickedClues.length > 0) {
+                const firstUnclickedClue = unclickedClues[0];
+                const clueEl = emailContainer.querySelector(firstUnclickedClue.selector);
+                
+                clueEl.classList.add('hint-highlight');
+                score = Math.max(0, score - 5);
+                showMessage(`Hint used! A clue has been highlighted.`, 'yellow');
+                
+                hintUsedThisRound = true;
+                updateUI();
+            } else {
+                showMessage('No more clues to find!', 'gray');
+            }
+        };
+
+        const showMessage = (msg, color) => {
+            const messageBox = document.createElement('div');
+            messageBox.textContent = msg;
+            messageBox.className = `p-4 rounded-lg mt-4 text-center font-bold text-lg transition-all duration-300`;
+            
+            if (color === 'green') {
+                messageBox.classList.add('bg-green-600', 'text-white', 'shadow-md');
+            } else if (color === 'red') {
+                messageBox.classList.add('bg-red-600', 'text-white', 'shadow-md');
+            } else if (color === 'yellow') {
+                messageBox.classList.add('bg-yellow-500', 'text-gray-900', 'shadow-md');
+            }
+            
+            emailContainer.prepend(messageBox);
+            setTimeout(() => {
+                messageBox.remove();
+            }, 3000);
+        };
+
+        const endGame = () => {
+            gameUI.classList.add('hidden');
+            overlay.classList.add('hidden');
+            nameModal.classList.remove('hidden');
+            
+            finalGameScore = score;
+        };
+
+        const saveScore = async () => {
+            const playerName = playerNameInput.value.trim() || 'Anonymous';
+            if (!userId) {
+                console.error("User not authenticated. Score not saved.");
+                return;
+            }
+            try {
+                const docRef = doc(db, `scores`, userId);
+                await setDoc(docRef, {
+                    userId: userId,
+                    score: finalGameScore,
+                    name: playerName,
+                    timestamp: new Date()
+                });
+                console.log("Score saved successfully!");
+                nameModal.classList.add('hidden');
+                overlay.classList.remove('hidden');
+                overlayTitle.textContent = "Game Over!";
+                overlayMessage.innerHTML = `<p class="text-xl md:text-2xl font-bold mb-4">Your Final Score: <span class="text-cyan-400">${finalGameScore}</span></p><p>Your score has been submitted for the grand prize drawing. Good luck!</p>`;
+                startButton.textContent = 'Play Again';
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                nameModal.classList.add('hidden');
+                overlay.classList.remove('hidden');
+                overlayTitle.textContent = "Error";
+                overlayMessage.textContent = "Score could not be saved to the leaderboard. Check your Firebase console for errors.";
+                startButton.textContent = 'Try Again';
+            }
+        };
+
+        const listenForLeaderboard = () => {
+            const scoresCol = collection(db, `scores`);
+            const q = query(scoresCol, limit(10));
+            onSnapshot(q, (querySnapshot) => {
+                const scores = [];
+                querySnapshot.forEach((doc) => {
+                    scores.push(doc.data());
+                });
+
+                scores.sort((a, b) => b.score - a.score);
+
+                leaderboard.innerHTML = '';
+                if (scores.length === 0) {
+                    leaderboard.innerHTML = '<p class="text-center text-gray-500">No scores yet. Be the first!</p>';
+                } else {
+                    scores.forEach((player, index) => {
+                        const row = document.createElement('div');
+                        row.className = 'flex justify-between items-center p-2 rounded';
+                        if (player.userId === userId) {
+                            row.classList.add('bg-green-700', 'bg-opacity-40', 'border', 'border-green-500');
+                        }
+                        const rank = index + 1;
+                        const nameDisplay = player.name || (player.userId ? player.userId.substring(0, 8) + '...' : 'Anonymous');
+                        row.innerHTML = `
+                            <span class="font-bold w-1/12">${rank}.</span>
+                            <span class="w-8/12 font-mono break-all">${nameDisplay}</span>
+                            <span class="w-3/12 text-right font-bold text-lg">${player.score}</span>
+                        `;
+                        leaderboard.appendChild(row);
+                    });
+                }
+            });
+        };
+
+        const setupFirebase = async () => {
+            loadingOverlay.classList.remove('hidden');
+            try {
+                await signInAnonymously(auth);
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = userId;
+                        loadingOverlay.classList.add('hidden');
+                        overlay.classList.remove('hidden');
+                        listenForLeaderboard();
+                    }
+                });
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                loadingOverlay.classList.add('hidden');
+                overlay.classList.remove('hidden');
+                overlayTitle.textContent = "Error";
+                overlayMessage.textContent = "Could not connect to the database. The game will run locally, but scores will not be saved. " + error.message;
+            }
+        };
+
+        // Event listeners
+        startButton.addEventListener('click', startGame);
+        actionButton.addEventListener('click', handleAction);
+        hintButton.addEventListener('click', handleHint);
+        submitNameButton.addEventListener('click', saveScore);
+
+        // Initial setup
+        window.addEventListener('load', setupFirebase);
+    </script>
+</body>
+</html>
