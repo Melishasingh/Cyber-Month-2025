@@ -101,7 +101,7 @@ const scenarios = [
                 type: 'link',
                 content: 'fedex-delivery-status.com',
                 target: 'https://phishing-site.com',
-                clue: "The message comes from a generic phone number, not an official one."
+                clue: "The message uses an urgent tone to pressure you into clicking a link, a classic phish."
             }
         ],
         clues: [
@@ -154,7 +154,6 @@ const App = () => {
     const [currentScenarioIndex, setCurrentScenarioIndex] = useState(0);
     const [playerName, setPlayerName] = useState('');
     const [phishFound, setPhishFound] = useState([]);
-    const [isAnsweredCorrectly, setIsAnsweredCorrectly] = useState(false);
 
     // Firebase Auth and Firestore setup
     useEffect(() => {
@@ -258,18 +257,10 @@ const App = () => {
         }
         
         setScore(prevScore => Math.max(0, prevScore + pointsChange));
-        if (isCorrect && currentScenario.isPhish && phishFound.length === currentScenario.phishElements.length) {
-            setHasAnsweredCorrectly(true);
-        } else if (isCorrect && !currentScenario.isPhish) {
-            setHasAnsweredCorrectly(true);
-        } else {
-            setHasAnsweredCorrectly(false);
-        }
     };
 
     const goToNextScenario = () => {
         setPhishFound([]);
-        setHasAnsweredCorrectly(false);
         const nextIndex = currentScenarioIndex + 1;
         if (nextIndex < scenarios.length) {
             setCurrentScenarioIndex(nextIndex);
@@ -304,7 +295,6 @@ const App = () => {
         setCurrentScenarioIndex(0);
         setFeedback({ message: '', isCorrect: null, clues: [] });
         setPhishFound([]);
-        setHasAnsweredCorrectly(false);
     };
 
     const renderEmailContent = () => {
@@ -337,8 +327,6 @@ const App = () => {
     };
 
     const renderGameScreen = () => {
-        const canAdvance = (currentScenario.isPhish && phishFound.length === currentScenario.phishElements.length) || (!currentScenario.isPhish && feedback.isCorrect);
-        
         return (
             <div className="relative flex flex-col items-center p-8 bg-[#001f3f] rounded-3xl shadow-lg w-full max-w-2xl transform transition-all duration-300 border-4 border-[#00e5e5]">
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-3 bg-[#00e5e5] rounded-b-xl animate-pulse"></div>
@@ -361,8 +349,10 @@ const App = () => {
                         </div>
     
                         {feedback.message && (
-                            <div className={`mt-6 p-4 text-center font-semibold rounded-lg transition-all duration-500 transform ${feedback.isCorrect ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
-                                {feedback.message}
+                            <div className="mt-6 flex flex-col items-center">
+                                <div className={`p-4 text-center font-semibold rounded-lg transition-all duration-500 transform ${feedback.isCorrect ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                                    {feedback.message}
+                                </div>
                             </div>
                         )}
                         {feedback.isCorrect === false && currentScenario.isPhish && (
@@ -501,20 +491,6 @@ const App = () => {
                         transform: scale(1);
                         opacity: 1;
                     }
-                }
-                .animate-fish-float {
-                    animation: fish-float 2s infinite ease-in-out;
-                }
-                @keyframes fish-float {
-                    0%, 100% { transform: translateY(0px) rotate(0deg); }
-                    50% { transform: translateY(-10px) rotate(5deg); }
-                }
-                .animate-crab-scuttle {
-                    animation: crab-scuttle 2s infinite ease-in-out;
-                }
-                @keyframes crab-scuttle {
-                    0%, 100% { transform: translateX(0px); }
-                    50% { transform: translateX(5px); }
                 }
                 .pufferfish-happy {
                     transform-origin: 50% 50%;
