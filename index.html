@@ -12,10 +12,7 @@ import {
     addDoc,
     query,
     onSnapshot,
-    serverTimestamp,
-    doc,
-    getDoc,
-    setDoc
+    serverTimestamp
 } from 'firebase/firestore';
 
 // Game data with realistic phishing emails
@@ -104,7 +101,7 @@ const scenarios = [
                 type: 'link',
                 content: 'fedex-delivery-status.com',
                 target: 'https://phishing-site.com',
-                clue: "The message uses an urgent tone to pressure you into clicking a link, a classic phish."
+                clue: "The message comes from a generic phone number, not an official one."
             }
         ],
         clues: [
@@ -157,7 +154,7 @@ const App = () => {
     const [currentScenarioIndex, setCurrentScenarioIndex] = useState(0);
     const [playerName, setPlayerName] = useState('');
     const [phishFound, setPhishFound] = useState([]);
-    const [hasAnsweredCorrectly, setHasAnsweredCorrectly] = useState(false);
+    const [isAnsweredCorrectly, setIsAnsweredCorrectly] = useState(false);
 
     // Firebase Auth and Firestore setup
     useEffect(() => {
