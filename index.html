@@ -3,469 +3,323 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spot the Phish - Cyber Security Adventure</title>
+    <title>Cyber Month Chronicles: Operation Datafall</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        html {
-            scroll-behavior: smooth;
-        }
         body {
-            font-family: 'Nunito', sans-serif;
-            background-color: #f0f9ff;
+            font-family: 'Roboto Mono', monospace;
+            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
         }
-        .sea-background {
-            background: linear-gradient(180deg, #3b82f6 0%, #1e40af 100%);
-            color: white;
+        h1, h2, button, input {
+            font-family: 'Share Tech Mono', monospace;
         }
-        .game-card {
-            background-color: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        .text-glow {
+            text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
         }
-        .phish-tag {
-            cursor: pointer;
-            transition: all 0.2s ease-in-out;
-            border-radius: 6px;
-            padding: 2px 4px;
+        .button-glow {
+            box-shadow: 0 0 8px rgba(0, 255, 255, 0.4), 0 0 16px rgba(0, 255, 255, 0.2);
+            transition: all 0.3s ease-in-out;
         }
-        .scenario-content-interactive {
-            cursor: pointer;
+        .button-glow:hover {
+            box-shadow: 0 0 12px rgba(0, 255, 255, 0.8), 0 0 24px rgba(0, 255, 255, 0.4);
+            transform: translateY(-2px);
         }
-        .phish-tag.correct {
-            background-color: #4ade80;
-            color: #14532d;
-            border: 2px solid #16a34a;
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.4),
+                rgba(0, 0, 0, 0.4) 1px,
+                transparent 1px,
+                transparent 4px
+            );
+            pointer-events: none;
+            z-index: 10;
         }
-        .phish-tag.incorrect {
-            background-color: #f87171;
-            color: #7f1d1d;
-            border: 2px solid #b91c1c;
+        #story {
+            white-space: pre-wrap; /* Preserves formatting for story text */
         }
-        .btn-primary {
-            background-color: #2563eb;
-            color: white;
-            transition: background-color 0.3s;
+        .character-card {
+            border: 2px solid rgba(0, 255, 255, 0.2);
+            background-color: rgba(9, 10, 15, 0.5);
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
         }
-        .btn-primary:hover {
-            background-color: #1d4ed8;
-        }
-        .btn-secondary {
-            background-color: #64748b;
-            color: white;
-            transition: background-color 0.3s;
-        }
-        .btn-secondary:hover {
-            background-color: #475569;
-        }
-        .leaderboard-entry {
-            transition: background-color 0.2s;
-        }
-        .leaderboard-entry:nth-child(odd) {
-            background-color: #f1f5f9;
-        }
-        .leaderboard-entry:hover {
-            background-color: #e2e8f0;
-        }
-        #name-modal, #game-over-modal {
-            background-color: rgba(0,0,0,0.5);
+        .character-card:hover {
+            border-color: rgba(0, 255, 255, 0.7);
+            transform: scale(1.05);
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
-
-    <div id="game-container" class="w-full max-w-4xl mx-auto hidden">
-        <header class="sea-background text-center p-6 rounded-t-2xl shadow-lg">
-            <h1 class="text-4xl font-bold">🐠 Spot the Phish Adventure 🦀</h1>
-            <p class="text-lg mt-2">Can you find the sneaky phish hiding in the deep blue web?</p>
-            <div class="mt-4 flex justify-around items-center text-2xl font-bold">
-                <div>Player: <span id="player-name-display"></span></div>
-                <div>Score: <span id="score">0</span></div>
-            </div>
+<body class="text-gray-200 flex items-center justify-center min-h-screen p-4">
+    <div class="scanlines"></div>
+    <div id="game-container" class="w-full max-w-3xl mx-auto rounded-2xl shadow-2xl shadow-cyan-500/10 p-6 md:p-8 relative z-20">
+        
+        <header class="text-center mb-6 border-b border-cyan-400/20 pb-4">
+            <h1 class="text-3xl md:text-4xl font-bold text-cyan-300 text-glow">Cyber Month Chronicles</h1>
+            <h2 id="subtitle" class="text-lg text-gray-300 mt-1">Operation: Datafall</h2>
         </header>
 
-        <main id="game-area" class="game-card p-6 md:p-8">
-            <div id="question-container">
-                <h2 id="question-title" class="text-2xl font-bold text-slate-800 mb-2"></h2>
-                <p id="question-description" class="text-slate-600 mb-6"></p>
-                <div id="scenario-content" class="scenario-content-interactive bg-slate-50 p-6 rounded-lg border border-slate-200 text-slate-700 leading-relaxed shadow-inner">
-                    <!-- Scenario will be injected here -->
+        <main>
+            <div id="character-selection" class="text-center">
+                <p class="text-xl mb-6">A new threat is emerging. Choose your agent:</p>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div id="char-alex" class="character-card p-6 rounded-lg cursor-pointer">
+                        <h3 class="text-2xl font-bold text-cyan-400">Alex</h3>
+                        <p class="mt-2 text-sm">The Veteran Agent. Experienced and methodical, but sometimes over-reliant on old tricks.</p>
+                    </div>
+                    <div id="char-ben" class="character-card p-6 rounded-lg cursor-pointer">
+                        <h3 class="text-2xl font-bold text-cyan-400">Ben</h3>
+                        <p class="mt-2 text-sm">The Eager Intern. A tech prodigy, but his trusting nature could be his downfall.</p>
+                    </div>
+                    <div id="char-chloe" class="character-card p-6 rounded-lg cursor-pointer">
+                        <h3 class="text-2xl font-bold text-cyan-400">Chloe</h3>
+                        <p class="mt-2 text-sm">The Remote Consultant. A master of digital forensics, but works from a home network.</p>
+                    </div>
                 </div>
             </div>
-            <div id="feedback" class="mt-4 text-center font-semibold min-h-[24px]"></div>
-            <div class="mt-6 flex flex-col sm:flex-row justify-center items-center gap-4">
-                <button id="legit-btn" class="w-full sm:w-auto py-3 px-6 rounded-lg font-bold text-lg btn-secondary shadow-md">🌊 It's Legitimate!</button>
-                <button id="check-answers-btn" class="w-full sm:w-auto py-3 px-6 rounded-lg font-bold text-lg btn-primary shadow-md">Check My Answers ✅</button>
-                <button id="next-question-btn" class="w-full sm:w-auto py-3 px-6 rounded-lg font-bold text-lg btn-primary shadow-md hidden">Next Question 🐙</button>
+
+            <div id="story-container" style="display: none;">
+                <div id="story" class="text-lg leading-relaxed mb-8 min-h-[200px] bg-black/20 p-4 rounded-md border border-gray-700">
+                    <!-- Story text will be injected here -->
+                </div>
+                <div id="choices" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Choice buttons will be injected here -->
+                </div>
+                <div id="outcome" class="mt-6 text-center font-semibold p-4 rounded-lg" style="display: none;">
+                    <!-- Consequence/explanation text will be injected here -->
+                </div>
+                <div id="report-container" class="mt-6 text-center" style="display: none;">
+                     <p class="text-lg text-green-300 mb-4">Complete your mission report via the link below to be entered into our Cyber Month raffle!</p>
+                    <a id="report-button" href="#" target="_blank" class="w-full max-w-sm mx-auto text-center p-4 rounded-lg bg-green-500/10 border-2 border-green-400/30 hover:bg-green-500/30 focus:ring-2 focus:ring-green-300 focus:outline-none button-glow">
+                        Log Mission Report
+                    </a>
+                </div>
             </div>
         </main>
-
-        <aside id="leaderboard-container" class="game-card p-6 md:p-8 mt-6">
-            <h2 class="text-2xl font-bold text-slate-800 mb-4 text-center">🏆 Top Anglers - Leaderboard 🏆</h2>
-            <div id="leaderboard" class="space-y-2 max-h-60 overflow-y-auto">
-                 <!-- Leaderboard scores will be injected here -->
-                 <p class="text-center text-slate-500">Loading top scores...</p>
-            </div>
-        </aside>
     </div>
 
-    <!-- Name Entry Modal -->
-    <div id="name-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md text-center">
-            <h2 class="text-3xl font-bold text-slate-800 mb-4">Welcome, Ocean Explorer!</h2>
-            <p class="text-slate-600 mb-6">Enter your name to join the leaderboard and start your phishing adventure.</p>
-            <input type="text" id="player-name-input" placeholder="e.g., Captain Ahab" class="w-full p-3 border border-slate-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-            <button id="start-game-btn" class="mt-6 w-full py-3 px-6 rounded-lg font-bold text-lg btn-primary shadow-md">Start Fishing!</button>
-        </div>
-    </div>
+    <script>
+        // DOM Elements
+        const characterSelection = document.getElementById('character-selection');
+        const storyContainer = document.getElementById('story-container');
+        const storyElement = document.getElementById('story');
+        const choicesElement = document.getElementById('choices');
+        const outcomeElement = document.getElementById('outcome');
+        const subtitle = document.getElementById('subtitle');
+        const reportContainer = document.getElementById('report-container');
+        const reportButton = document.getElementById('report-button');
 
-    <!-- Game Over Modal -->
-    <div id="game-over-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md text-center">
-            <h2 class="text-3xl font-bold text-slate-800 mb-4">🎉 Adventure Complete! 🎉</h2>
-            <p class="text-slate-600 mb-2">Great job navigating the treacherous waters!</p>
-            <p class="text-2xl font-bold mb-6">Your Final Score: <span id="final-score"></span></p>
-            <p class="text-slate-600 mb-6">Your name is on the leaderboard. Thanks for playing and staying cyber-safe!</p>
-            <button id="see-leaderboard-btn" class="w-full py-3 px-6 rounded-lg font-bold text-lg btn-primary shadow-md">See the Top Anglers 🏆</button>
-        </div>
-    </div>
+        // Game State Variables
+        let gameState = {};
+        const storageKey = 'cyberAdventureGameState';
 
-
-    <script type="module">
-        // Firebase Imports
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, onSnapshot, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // --- Firebase Configuration ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'spot-the-phish-game';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        let db, auth;
-
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-        } catch (e) {
-            console.error("Firebase initialization failed:", e);
+        // --- Local Storage Functions ---
+        function saveGameState() {
+            localStorage.setItem(storageKey, JSON.stringify(gameState));
         }
 
-        // --- Authentication ---
-        async function signIn() {
-            try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Authentication Error:", error);
+        function loadGameState() {
+            const savedState = localStorage.getItem(storageKey);
+            if (savedState) {
+                gameState = JSON.parse(savedState);
+                
+                // If game is in progress, jump right in
+                if (gameState.character && gameState.currentNode) {
+                    characterSelection.style.display = 'none';
+                    storyContainer.style.display = 'block';
+                    subtitle.textContent = `Character: ${gameState.character}`;
+                    showNode(gameState.currentNode, false);
+                } 
             }
         }
-
-        // --- Game Data ---
-        const questions = [
-            {
-                title: "Suspicious Login Alert",
-                description: "You received this email about a login from an unrecognized device. Is it legitimate? Click on the parts that look fishy.",
-                scenario: `
-                    <p><strong>From:</strong> <span class="phish-tag" data-phish="true" data-explanation="Misspelled company names like 'Netfl1x' and suspicious sender domains are major red flags.">Netfl1x Security &lt;security-noreply@netfl1x.co&gt;</span></p>
-                    <p><strong>Subject:</strong> Unusual Sign-In Activity</p>
-                    <hr class="my-4">
-                    <p>Hi Customer,</p>
-                    <p>We detected a new sign-in to your account from an unrecognized device.</p>
-                    <p><span class="phish-tag" data-phish="true" data-explanation="An unusual or foreign location for a login you didn't make is a huge red flag."><strong>Location:</strong> Moscow, Russia</span></p>
-                    <p>If this was not you, please secure your account by clicking the link below:</p>
-                    <p><a href="#" class="phish-tag text-blue-600 underline" data-phish="true" data-explanation="A suspicious URL that doesn't match the official company domain is a clear sign of phishing.">https://netfl1x-support-center.com/reset</a></p>
-                    <p>If you don't act, <span class="phish-tag" data-phish="true" data-explanation="Phishing emails often create a false sense of urgency to pressure you into acting without thinking.">your account will be locked in 24 hours</span>.</p>
-                    <p>Thanks,<br>The Netflix Team</p>
-                `,
-                phishCount: 4,
-                isLegit: false
-            },
-            {
-                title: "Invoice from a Supplier",
-                description: "Your finance department forwarded this invoice. Looks standard, but is it? Click any red flags.",
-                 scenario: `
-                    <p><strong>From:</strong> <span class="phish-tag" data-phish="true" data-explanation="Attackers often use domains that look similar to real ones, like 'acm3-global.net' instead of 'acme.com'.">Acm3 Corp Billing &lt;billing@acm3-global.net&gt;</span></p>
-                    <p><strong>Subject:</strong> Invoice Due</p>
-                    <hr class="my-4">
-                    <p>Dear Valued Partner,</p>
-                    <p>Please find attached the invoice for this month's services. <span class="phish-tag" data-phish="true" data-explanation="Creating urgency around payments is a common tactic to make you act without thinking.">Payment is due immediately</span> to avoid service interruption.</p>
-                    <p>We have recently updated our payment systems. Please use the banking details in the attached document for all future payments.</p>
-                    <p>Download Invoice: <a href="#" class="phish-tag text-blue-600 underline" data-phish="true" data-explanation="Never download unexpected attachments, especially ZIP files, as they can contain malware.">Invoice_Nov_2023.zip</a></p>
-                    <p>Thank you for your prompt attention to this matter.</p>
-                    <p>Kind regards,<br>The Finance Team<br><span class="phish-tag" data-phish="true" data-explanation="Misspellings of the company's own name, like 'Acm3' instead of 'Acme', are a major giveaway.">Acm3 Corporation</span></p>
-                `,
-                phishCount: 4,
-                isLegit: false
-            },
-            {
-                title: "Package Delivery Notification",
-                description: "A package is on its way! Or is it? Examine this SMS notification carefully.",
-                scenario: `
-                    <div class="bg-gray-200 p-4 rounded-lg">
-                        <p class="font-mono text-sm"><strong>From: +1 (555) 123-4567</strong></p>
-                        <p class="mt-2">FedEx: Your package with tracking ID <span class="phish-tag" data-phish="true" data-explanation="Phishing texts (smishing) often use generic tracking numbers and don't refer to a specific order you made.">821-X47B9</span> has a pending delivery issue.</p>
-                        <p>To avoid return-to-sender, please confirm your address and pay the <span class="phish-tag" data-phish="true" data-explanation="Legitimate carriers rarely ask for small 'redelivery fees' via text message links.">\$1.99 redelivery fee</span> here:</p>
-                        <p><a href="#" class="phish-tag text-blue-600 underline" data-phish="true" data-explanation="Shortened URLs (like bit.ly, t.co) hide the true destination, a common phishing tactic.">http://bit.ly/fedex-tracking-update</a></p>
-                    </div>
-                `,
-                phishCount: 3,
-                isLegit: false
-            },
-             {
-                title: "IT Department Password Policy Update",
-                description: "This looks like a legitimate internal email. Or is it a clever fake? Find the phish.",
-                scenario: `
-                    <p><strong>From:</strong> IT Support &lt;ITSupport@coupa.com&gt;</p>
-                    <p><strong>Subject:</strong> Action Required: Mandatory Password Update</p>
-                    <hr class="my-4">
-                    <p>Hello employee,</p>
-                    <p>Due to a recent security audit, all employees are required to update their passwords <span class="phish-tag" data-phish="true" data-explanation="Creating a false sense of urgency with a short deadline is a common phishing tactic.">within the next 48 hours</span>. Please use the link below to access the password update portal.</p>
-                    <p>Failure to comply will result in your account being suspended.</p>
-                    <p>Update here: <a href="#" class="phish-tag text-blue-600 underline" data-phish="true" data-explanation="A real IT department would likely direct you to a trusted internal portal, not a strange-looking external link.">https://my-company-password-reset.web.app/update</a></p>
-                    <p>Thank you,<br>Your IT Department</p>
-                `,
-                phishCount: 2,
-                isLegit: false
-            },
-            {
-                title: "Weekly Project Status Update",
-                description: "This is an email from your manager about the weekly status meeting. Does anything seem off?",
-                scenario: `
-                    <p><strong>From:</strong> Jane Doe &lt;jane.doe@yourcompany.com&gt;</p>
-                    <p><strong>Subject:</strong> Agenda for Friday's Project Sync</p>
-                    <hr class="my-4">
-                    <p>Hi Team,</p>
-                    <p>Just a reminder about our weekly sync meeting this Friday at 10 AM.</p>
-                    <p>I've attached the agenda for our discussion. Please review it beforehand and come prepared with your updates.</p>
-                    <p>Attachment: <a href="#" class="text-blue-600 underline">Project_Agenda_Week45.docx</a></p>
-                    <p>See you then,</p>
-                    <p>Best,<br>Jane</p>
-                `,
-                phishCount: 0,
-                isLegit: true
-            }
-        ];
-
-        // --- Game State ---
-        let score = 0;
-        let currentQuestionIndex = 0;
-        let playerName = "";
-        let foundPhishCount = 0;
-        let answeredCurrentQuestion = false;
-
-        // --- DOM Elements ---
-        const scoreEl = document.getElementById('score');
-        const questionTitleEl = document.getElementById('question-title');
-        const questionDescriptionEl = document.getElementById('question-description');
-        const scenarioContentEl = document.getElementById('scenario-content');
-        const checkAnswersBtn = document.getElementById('check-answers-btn');
-        const nextQuestionBtn = document.getElementById('next-question-btn');
-        const legitBtn = document.getElementById('legit-btn');
-        const feedbackEl = document.getElementById('feedback');
-        const nameModal = document.getElementById('name-modal');
-        const gameOverModal = document.getElementById('game-over-modal');
-        const gameContainer = document.getElementById('game-container');
-
-        // --- Game Logic ---
-        function startGame() {
-            playerName = document.getElementById('player-name-input').value.trim() || "Anonymous Angler";
-            document.getElementById('player-name-display').innerText = playerName;
-            nameModal.classList.add('hidden');
-            gameContainer.classList.remove('hidden');
-            
-            score = 0;
-            currentQuestionIndex = 0;
-            updateScore(0);
-            loadQuestion(currentQuestionIndex);
-            listenForLeaderboard();
+        
+        function deleteGameState() {
+            localStorage.removeItem(storageKey);
+            gameState = {};
         }
 
-        function loadQuestion(index) {
-            if (index >= questions.length) {
-                endGame();
+        // --- Game Story Data ---
+        const story = {
+            start: {
+                text: `The briefing was grim. A cyber-espionage group, 'The Digital Phantoms', has launched 'Operation Datafall'. Their goal: infiltrate corporate networks through their weakest link—people.
+
+Your terminal chimes. It's an encrypted message from HQ: "PHANTOM ACTIVITY DETECTED. ALL AGENTS ON HIGH ALERT."
+
+Just then, your phone buzzes. A text from an unknown number: "URGENT: Corporate account breach detected. Tap to secure your account now: [corporate-secure-login.com]"`,
+                choices: [
+                    { text: "Tap the link. It could be real.", next: 'phishingFail' },
+                    { text: "Analyze the link's metadata first.", next: 'phishingAnalyze' },
+                    { text: "Forward the text to the IT Security team's public submission portal.", next: 'phishingReport' }
+                ]
+            },
+            phishingFail: {
+                text: `You tap the link. A perfect replica of your company's login page appears. You enter your credentials. The page reloads with an error... but it's too late. Your endpoint protection software screams a notification: "Malware Detected: 'PhantomKey' keylogger installed."
+
+The Digital Phantoms have your password. They are inside.
+
+<strong class="text-red-400">MISSION FAILURE</strong>`,
+                outcome: { text: "This was a sophisticated phishing attack. Tapping the link directly was a critical error.", style: "bg-red-900/50 text-red-300 border border-red-500/30", result: "Failure - Phishing" },
+                choices: [{ text: "Restart the Mission", next: 'restart' }]
+            },
+            phishingAnalyze: {
+                text: `You copy the link without opening it and run it through a link analyzer. The results are chilling: the domain was registered just hours ago, and it's routing through servers in a known rogue state. It's a clear phishing attempt.
+
+As you blacklist the domain, your work laptop flashes a bright red notification: 'SYSTEM UPDATE REQUIRED. Your endpoint protection software is out of date.' You're in the middle of compiling critical intelligence on the Phantoms.`,
+                choices: [
+                    { text: "Ignore it for now. The intel is too important.", next: 'updateFail' },
+                    { text: "Start the update. A secure endpoint is non-negotiable.", next: 'updateSuccess' }
+                ]
+            },
+            phishingReport: {
+                text: `Excellent protocol. You forward the message to the security team. Within minutes, an automated response confirms it's a known phishing campaign. A company-wide alert is issued, neutralizing the threat. Your quick thinking has protected hundreds.
+
+Your focus returns to your laptop, which is displaying a persistent notification: 'SYSTEM UPDATE REQUIRED. Your endpoint protection software is out of date.'`,
+                choices: [
+                    { text: "I'll do it later. This can't be as urgent as the Phantoms.", next: 'updateFail' },
+                    { text: "Save work and initiate the update.", next: 'updateSuccess' }
+                ]
+            },
+            updateFail: {
+                text: `You dismiss the notification, focusing on your report. Suddenly, your screen flickers. A message appears, written in crude green text: "WE ARE THE PHANTOMS. YOUR FIREWALL IS OURS."
+
+The DataWorm malware exploited the very vulnerability the update was meant to patch. Your machine is compromised.
+
+<strong class="text-red-400">MISSION FAILURE</strong>`,
+                outcome: { text: "Critical security updates patch known vulnerabilities that attackers are actively exploiting. Delaying them is a gamble you lost.", style: "bg-red-900/50 text-red-300 border border-red-500/30", result: "Failure - Delayed Update" },
+                choices: [{ text: "Restart the Mission", next: 'restart' }]
+            },
+            updateSuccess: {
+                text: `You run the update. It takes 15 minutes, but your endpoint protection is now patched and running a deep scan. The system is secure.
+
+You decide to take a short break and work from a nearby cafe to change your environment. The cafe offers free public Wi-Fi. Your phone has a strong 5G signal.`,
+                choices: [
+                    { text: "Connect to the cafe's public Wi-Fi.", next: 'wifiFail' },
+                    { text: "Use your phone's 5G as a secure hotspot.", next: 'hotspotSuccess' }
+                ]
+            },
+            wifiFail: {
+                 text: `You connect to "Cafe_Guest_WiFi". A few minutes into your work, a pop-up asks you to install a "network driver" to improve speed. It seems plausible. You click install.
+
+Your screen freezes, then displays the Phantom's logo. The public Wi-Fi was a trap—a 'man-in-the-middle' attack. They intercepted your connection and pushed malware to your device.
+
+<strong class="text-red-400">MISSION FAILURE</strong>`,
+                 outcome: { text: "Public Wi-Fi is inherently insecure. Attackers can create fake hotspots or monitor unencrypted traffic. Never install software prompted by a public network.", style: "bg-red-900/50 text-red-300 border border-red-500/30", result: "Failure - Public Wi-Fi" },
+                 choices: [{ text: "Restart the Mission", next: 'restart' }]
+            },
+            hotspotSuccess: {
+                text: `You wisely tether to your phone's encrypted 5G network, bypassing the insecure public Wi-Fi. As you're working, you spot a USB flash drive on the floor, labeled "Q4 Executive Bonuses."
+
+It's tempting. This could hold valuable intel, or it could be a trap.`,
+                choices: [
+                    { text: "Plug it into your laptop. You have to know what's on it.", next: 'usbFail' },
+                    { text: "Leave it. It's too much of a risk.", next: 'usbSuccess' },
+                    { text: "Take it to an isolated IT sandbox for analysis.", next: 'victory' }
+                ]
+            },
+            usbFail: {
+                text: `The moment you plug the USB into your machine, the autorun function executes a malicious payload. Your keyboard and mouse lock up. The Phantoms' skull logo fills your screen.
+
+It was a 'USB drop' attack, one of the oldest tricks in the book.
+
+<strong class="text-red-400">MISSION FAILURE</strong>`,
+                outcome: { text: "Never plug in a found USB drive. They are a common vector for malware that can execute automatically, bypassing some security measures.", style: "bg-red-900/50 text-red-300 border border-red-500/30", result: "Failure - USB Drop" },
+                choices: [{ text: "Restart the Mission", next: 'restart' }]
+            },
+            usbSuccess: {
+                text: `You correctly identify the USB drive as a major security risk and leave it untouched. While you've avoided a direct threat, you can't shake the feeling you've left a piece of the puzzle behind.
+
+You've protected your device, but the Phantoms' broader plan remains a mystery. You've survived, but the war isn't over.
+
+<strong class="text-amber-400">MISSION SURVIVAL</strong>`,
+                outcome: { text: "You made a safe choice, but a great agent turns a threat into an opportunity. The best path was to analyze the drive in a secure environment.", style: "bg-amber-900/50 text-amber-300 border border-amber-500/30", result: "Survival - Avoided USB" },
+                choices: [{ text: "Play Again", next: 'restart' }]
+            },
+            victory: {
+                text: `This is the move of a master agent. You take the USB drive to an IT lab with a sandboxed, air-gapped PC. Upon analysis, the drive contains not only malware, but also a file that, when decrypted, reveals the location of the Digital Phantoms' primary command server.
+
+You've not only defended against their attack, you've given HQ the key to dismantling their entire operation.
+
+<strong class="text-cyan-300 text-glow">MISSION ACCOMPLISHED!</strong>`,
+                outcome: { text: "Exceptional work, Agent! You navigated every threat with skill and turned the enemy's weapon against them. You didn't just protect the data; you defeated the threat.", style: "bg-cyan-900/50 text-cyan-300 border border-cyan-500/30", result: "Victory" },
+                choices: [{ text: "Play Again", next: 'restart' }]
+            }
+        };
+
+        // --- Game Logic Functions ---
+        function selectCharacter(name) {
+            gameState.character = name;
+            characterSelection.style.display = 'none';
+            storyContainer.style.display = 'block';
+            subtitle.textContent = `Character: ${gameState.character}`;
+            showNode('start');
+        }
+
+        function showNode(nodeKey, shouldSave = true) {
+            if (nodeKey === 'restart') {
+                deleteGameState();
+                characterSelection.style.display = 'block';
+                storyContainer.style.display = 'none';
+                subtitle.textContent = 'Operation: Datafall';
                 return;
             }
-            
-            answeredCurrentQuestion = false;
-            foundPhishCount = 0;
-            const question = questions[index];
-            questionTitleEl.innerText = question.title;
-            questionDescriptionEl.innerText = question.description;
-            scenarioContentEl.innerHTML = question.scenario;
-            feedbackEl.innerHTML = '';
 
-            nextQuestionBtn.classList.add('hidden');
-            legitBtn.classList.remove('hidden');
-            checkAnswersBtn.classList.remove('hidden');
-        }
+            const node = story[nodeKey];
+            storyElement.innerHTML = node.text;
+            gameState.currentNode = nodeKey;
 
-        function handleScenarioClick(event) {
-            if (answeredCurrentQuestion) return;
 
-            const tag = event.target.closest('.phish-tag');
-
-            if (tag) { // Clicked on a designated clickable area
-                if (tag.dataset.clicked) return; // Already clicked this tag
-
-                tag.dataset.clicked = true;
-                const isPhish = tag.dataset.phish === 'true';
-                const explanation = tag.dataset.explanation;
-
-                if (isPhish) {
-                    tag.classList.add('correct');
-                    updateScore(5);
-                    foundPhishCount++;
-                    feedbackEl.innerHTML = `<p class="text-green-600">Correct! ${explanation}</p>`;
-                }
-            } else { // Clicked on a non-phishy, non-tagged part of the text
-                updateScore(-1);
-                feedbackEl.innerHTML = `<p class="text-red-600">That's not a phish. A point has been deducted.</p>`;
+            while (choicesElement.firstChild) {
+                choicesElement.removeChild(choicesElement.firstChild);
             }
-        }
 
-        function checkAnswers() {
-            if (answeredCurrentQuestion) return;
-            answeredCurrentQuestion = true;
-
-            const currentQuestion = questions[currentQuestionIndex];
-            const missedCount = currentQuestion.phishCount - foundPhishCount;
-
-            if (missedCount > 0) {
-                updateScore(-1 * missedCount);
-                feedbackEl.innerHTML = `<p class="text-red-600 font-bold">You missed ${missedCount} phish(es)! The missed clues are highlighted in red.</p>`;
+            if (node.outcome) {
+                outcomeElement.innerHTML = node.outcome.text;
+                outcomeElement.className = `mt-6 text-center font-semibold p-4 rounded-lg ${node.outcome.style}`;
+                outcomeElement.style.display = 'block';
                 
-                document.querySelectorAll('.phish-tag[data-phish="true"]').forEach(tag => {
-                    if (!tag.classList.contains('correct')) {
-                        tag.classList.add('incorrect');
-                    }
-                });
-            } else if (currentQuestion.phishCount > 0) {
-                 feedbackEl.innerHTML = `<p class="text-green-600 font-bold">You found all the phish! Great job!</p>`;
+                // --- Reporting Logic ---
+                reportContainer.style.display = 'block';
+                // Link to the user-provided Google Form
+                const baseURL = "https://docs.google.com/forms/d/e/1FAIpQLSccG1sMooAvRPDsnoHc4DSfFEjgAdosn18oPE-FkwaHb-VR5w/viewform?usp=pp_url";
+                const characterParam = `&entry.1481525413=${encodeURIComponent(gameState.character)}`;
+                const resultParam = `&entry.149815048=${encodeURIComponent(node.outcome.result)}`;
+                reportButton.href = baseURL + characterParam + resultParam;
+
             } else {
-                 feedbackEl.innerHTML = `<p class="text-green-600 font-bold">Correct, this one is legitimate!</p>`;
+                outcomeElement.style.display = 'none';
+                reportContainer.style.display = 'none';
             }
 
-            legitBtn.classList.add('hidden');
-            checkAnswersBtn.classList.add('hidden');
-            nextQuestionBtn.classList.remove('hidden');
-        }
-
-        function handleLegitBtn() {
-            if (answeredCurrentQuestion) return;
-            answeredCurrentQuestion = true;
-            
-            const question = questions[currentQuestionIndex];
-            if (question.isLegit) {
-                updateScore(5);
-                feedbackEl.innerHTML = `<p class="text-green-600 font-bold">You're right! This one is a safe email. Well done!</p>`;
-            } else {
-                updateScore(-5); // Penalty for misidentifying a phish
-                feedbackEl.innerHTML = `<p class="text-red-600 font-bold">Oops! This one was a phish. The clues are now highlighted in red.</p>`;
-                document.querySelectorAll('.phish-tag[data-phish="true"]').forEach(tag => {
-                    tag.classList.add('incorrect');
-                });
-            }
-
-            legitBtn.classList.add('hidden');
-            checkAnswersBtn.classList.add('hidden');
-            nextQuestionBtn.classList.remove('hidden');
-        }
-
-        function updateScore(change) {
-            score += change;
-            scoreEl.innerText = score;
-        }
-
-        function nextQuestion() {
-            currentQuestionIndex++;
-            loadQuestion(currentQuestionIndex);
-        }
-
-        async function endGame() {
-            document.getElementById('final-score').innerText = score;
-            gameOverModal.classList.remove('hidden');
-            await saveScore();
-        }
-
-        function seeLeaderboard() {
-            gameOverModal.classList.add('hidden');
-            document.getElementById('leaderboard-container').scrollIntoView({ behavior: 'smooth' });
-        }
-
-        // --- Firebase Functions ---
-        async function saveScore() {
-            if (!db || !auth.currentUser) {
-                console.error("Firestore not initialized or user not authenticated.");
-                return;
-            }
-            try {
-                const leaderboardCollection = collection(db, `artifacts/${appId}/public/data/leaderboard`);
-                const userDocRef = doc(leaderboardCollection, auth.currentUser.uid);
-                await setDoc(userDocRef, {
-                    name: playerName,
-                    score: score,
-                    timestamp: new Date()
-                });
-            } catch (error) {
-                console.error("Error saving score: ", error);
-            }
-        }
-
-        function listenForLeaderboard() {
-            if (!db) return;
-            const q = query(collection(db, `artifacts/${appId}/public/data/leaderboard`));
-
-            onSnapshot(q, (snapshot) => {
-                const scores = snapshot.docs.map(doc => doc.data());
-                scores.sort((a, b) => b.score - a.score || a.timestamp - b.timestamp);
-                
-                const leaderboardEl = document.getElementById('leaderboard');
-                leaderboardEl.innerHTML = '';
-
-                if (scores.length === 0) {
-                    leaderboardEl.innerHTML = '<p class="text-center text-slate-500">Be the first on the leaderboard!</p>';
-                    return;
-                }
-
-                scores.slice(0, 10).forEach((entry, index) => {
-                    const rank = index + 1;
-                    const entryEl = document.createElement('div');
-                    entryEl.className = 'leaderboard-entry flex justify-between items-center p-3 rounded-lg';
-                    entryEl.innerHTML = `
-                        <div class="flex items-center">
-                            <span class="font-bold text-slate-700 w-8">${rank}.</span>
-                            <span class="text-slate-800">${entry.name}</span>
-                        </div>
-                        <span class="font-bold text-blue-600">${entry.score} pts</span>
-                    `;
-                    leaderboardEl.appendChild(entryEl);
-                });
-            }, (error) => {
-                console.error("Error listening to leaderboard:", error);
-                document.getElementById('leaderboard').innerHTML = '<p class="text-center text-red-500">Could not load leaderboard.</p>';
+            node.choices.forEach(choice => {
+                const button = document.createElement('button');
+                button.innerHTML = choice.text;
+                button.className = `w-full text-center p-4 rounded-lg bg-cyan-500/10 border-2 border-cyan-400/30 hover:bg-cyan-500/30 focus:ring-2 focus:ring-cyan-300 focus:outline-none button-glow`;
+                button.addEventListener('click', () => showNode(choice.next));
+                choicesElement.appendChild(button);
             });
+
+            if (shouldSave) {
+                saveGameState();
+            }
         }
 
         // --- Event Listeners ---
-        document.getElementById('start-game-btn').addEventListener('click', startGame);
-        document.getElementById('player-name-input').addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') startGame();
-        });
-        scenarioContentEl.addEventListener('click', handleScenarioClick);
-        checkAnswersBtn.addEventListener('click', checkAnswers);
-        nextQuestionBtn.addEventListener('click', nextQuestion);
-        legitBtn.addEventListener('click', handleLegitBtn);
-        document.getElementById('see-leaderboard-btn').addEventListener('click', seeLeaderboard);
+        document.getElementById('char-alex').addEventListener('click', () => selectCharacter('Alex'));
+        document.getElementById('char-ben').addEventListener('click', () => selectCharacter('Ben'));
+        document.getElementById('char-chloe').addEventListener('click', () => selectCharacter('Chloe'));
 
-        // --- Initialize ---
-        signIn();
+        // --- Initial Load ---
+        window.addEventListener('load', loadGameState);
 
     </script>
 </body>
 </html>
+
