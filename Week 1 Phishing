@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Think Before You Click: Phishing Reef</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c1427;
+            background-image: linear-gradient(to bottom, #0c1427, #01040a),
+                radial-gradient(circle at 100% 0%, rgba(13, 116, 255, 0.2) 0%, rgba(13, 116, 255, 0) 25%),
+                radial-gradient(circle at 0% 100%, rgba(13, 255, 151, 0.2) 0%, rgba(13, 255, 151, 0) 25%);
+        }
+        .bangers-font {
+            font-family: 'Bangers', cursive;
+        }
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.1), 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .option-btn {
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .option-btn:hover {
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 6px 25px rgba(0,0,0,0.3);
+            border-color: rgba(0, 255, 255, 0.5);
+        }
+        .correct {
+            background-color: #22c55e !important; /* Green 500 */
+            border-color: #86efac !important;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px #22c55e;
+        }
+        .incorrect {
+            background-color: #ef4444 !important; /* Red 500 */
+            border-color: #fca5a5 !important;
+        }
+        .shake {
+            animation: shake 0.5s;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+            20%, 40%, 60%, 80% { transform: translateX(8px); }
+        }
+        .fish {
+            width: 80px;
+            height: 80px;
+            transition: left 0.5s ease-in-out;
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            animation: fish-bob 3s infinite ease-in-out;
+            filter: drop-shadow(0 0 10px rgba(255, 193, 7, 0.7));
+        }
+        @keyframes fish-bob {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 20px;
+            background-color: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.2);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #34d399, #3b82f6);
+            transition: width 0.5s ease-in-out;
+        }
+        .bubble {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            animation: bubble-rise 12s infinite ease-in;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        @keyframes bubble-rise {
+            0% {
+                bottom: -50px;
+                transform: translateX(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            100% {
+                bottom: 100vh;
+                transform: translateX(calc(sin(var(--bubble-sway)) * 50px));
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white flex items-center justify-center p-4 overflow-hidden">
+
+    <!-- Background Bubbles -->
+    <div id="bubbles-container"></div>
+
+    <div class="w-full max-w-4xl mx-auto z-10">
+        <div id="start-screen" class="text-center">
+            <h1 class="bangers-font text-6xl md:text-8xl text-cyan-300 tracking-wider" style="text-shadow: 3px 3px 6px rgba(0,0,0,0.6);">Phishing Reef</h1>
+            <p class="bangers-font text-3xl md:text-4xl text-white mt-2">Think Before You Click!</p>
+            <p class="mt-6 text-lg text-gray-300 max-w-2xl mx-auto">Welcome, brave fish! It's Cybersecurity Awareness Month. Navigate the treacherous Phishing Reef by identifying tricky emails and online scams. Choose wisely to avoid getting hooked!</p>
+            <button id="start-btn" class="mt-8 bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-10 rounded-full text-2xl shadow-lg transform hover:scale-105 transition duration-300 ease-in-out bangers-font tracking-widest border-2 border-blue-300">Start Adventure</button>
+        </div>
+
+        <div id="game-screen" class="hidden">
+            <!-- Header Info -->
+            <div class="flex justify-between items-center mb-4">
+                <div class="bangers-font text-2xl">Score: <span id="score">0</span></div>
+                <div class="bangers-font text-2xl">Question <span id="question-counter">1</span> / <span id="total-questions">10</span></div>
+            </div>
+
+            <!-- Progress Bar with Fish -->
+            <div class="relative mb-6 h-16">
+                 <div class="progress-bar-container absolute bottom-8 w-full">
+                    <div id="progress-bar" class="progress-bar" style="width: 0%;"></div>
+                </div>
+                <div id="player-fish" class="fish">
+                    <svg viewBox="0 0 100 100" fill="#FFC107"><path d="M99.3,44.3c-2.3-5.5-5.9-10.2-10.7-13.8c-2.4-1.8-5-3.2-7.7-4.3c-2.3-0.9-4.7-1.6-7.1-2c-4.9-0.8-9.8-0.5-14.7,0.8 c-4.4,1.2-8.7,3-12.7,5.5c-4,2.4-7.6,5.4-10.8,8.8c-3.1,3.4-5.7,7.2-7.8,11.3c-1.1,2-2,4.2-2.7,6.3c-0.7,2.2-1.1,4.4-1.3,6.7 c-0.2,2.5-0.1,5,0.4,7.5c0.3,1.3,0.7,2.6,1.2,3.8c1,2.7,2.5,5.1,4.4,7.3c3.4,4,8,6.8,13.1,8.2c5.3,1.5,10.9,1.2,16.2-0.5 c5.3-1.7,10.2-4.5,14.4-8.2c4.1-3.6,7.5-8,9.8-12.9c1.2-2.5,2-5.2,2.5-7.9c0.5-2.7,0.7-5.5,0.4-8.2 C99.8,48.7,99.7,46.5,99.3,44.3z"></path><circle cx="75" cy="45" r="5" fill="black"></circle><path d="M2,40 C10,30 20,30 25,40 S35,60 40,50" fill="none" stroke="#F44336" stroke-width="3"></path></svg>
+                </div>
+                 <div class="absolute right-0 bottom-6 text-3xl">🏁</div>
+            </div>
+
+            <!-- Game Card -->
+            <div id="question-card" class="game-card p-6 md:p-8 rounded-2xl">
+                <div id="scenario" class="text-center mb-6">
+                    <div id="scenario-icon" class="text-5xl mb-4"></div>
+                    <p id="question-text" class="text-lg md:text-xl text-cyan-100"></p>
+                </div>
+                <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Options will be injected here -->
+                </div>
+            </div>
+            <div id="feedback" class="mt-4 text-center text-lg font-semibold min-h-[3em] p-2 rounded-lg"></div>
+        </div>
+
+        <div id="end-screen" class="hidden text-center">
+            <h1 class="bangers-font text-6xl md:text-8xl text-cyan-300 tracking-wider" style="text-shadow: 3px 3px 6px rgba(0,0,0,0.6);">Adventure Complete!</h1>
+            <p class="bangers-font text-3xl md:text-4xl text-white mt-2">Your Final Score: <span id="final-score"></span></p>
+            <div id="end-message" class="mt-6 text-lg text-gray-300 max-w-2xl mx-auto"></div>
+            <div class="mt-8 p-6 rounded-lg bg-yellow-400 text-gray-900 font-bold shadow-lg border-4 border-yellow-300">
+                <h2 class="text-2xl mb-2">🎉 Enter Our Cybersecurity Raffle! 🎉</h2>
+                <p>To celebrate Cybersecurity Awareness Month, fill out the Google Form at the link below to enter our raffle for a chance to win exclusive swag!</p>
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSeQZOg6pg7vjx8Ti0arzWaMiA2OrkhGNiqBp2DvhSCp_0W8Gw/viewform?usp=pp_url" target="_blank" class="mt-4 inline-block bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors">Enter Raffle Here</a>
+            </div>
+            <button id="restart-btn" class="mt-8 bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-10 rounded-full text-2xl shadow-lg transform hover:scale-105 transition duration-300 ease-in-out bangers-font tracking-widest border-2 border-green-300">Play Again</button>
+        </div>
+    </div>
+
+<script>
+    // --- DOM ELEMENTS ---
+    const startScreen = document.getElementById('start-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const endScreen = document.getElementById('end-screen');
+    const startBtn = document.getElementById('start-btn');
+    const restartBtn = document.getElementById('restart-btn');
+
+    const scoreEl = document.getElementById('score');
+    const questionCounterEl = document.getElementById('question-counter');
+    const totalQuestionsEl = document.getElementById('total-questions');
+    const progressBar = document.getElementById('progress-bar');
+    const playerFish = document.getElementById('player-fish');
+
+    const questionCard = document.getElementById('question-card');
+    const scenarioIconEl = document.getElementById('scenario-icon');
+    const questionTextEl = document.getElementById('question-text');
+    const optionsContainer = document.getElementById('options-container');
+    const feedbackEl = document.getElementById('feedback');
+    
+    const finalScoreEl = document.getElementById('final-score');
+    const endMessageEl = document.getElementById('end-message');
+    const bubblesContainer = document.getElementById('bubbles-container');
+
+    // --- GAME DATA ---
+    const questions = [
+        {
+            icon: '🎣',
+            question: "You get an email with the subject 'URGENT: Your Account is Suspended!' It asks you to click a link to verify your details. The sender is 'support@paypaI.com'. What do you do?",
+            options: [
+                { text: 'Click the link immediately to secure your account.', correct: false, feedback: "Careful! 'paypaI.com' uses a capital 'I' instead of an 'l'. This is a homograph attack. Always go directly to the website yourself." },
+                { text: 'Ignore it and check your account by typing paypal.com in your browser.', correct: true, feedback: "Excellent! You spotted the fake URL. Going directly to the official website is the safest way to check your account status." }
+            ]
+        },
+        {
+            icon: '📱',
+            question: "You get a call from someone claiming to be from Microsoft. They say your computer is sending out viruses. To fix it, they need you to go to `fastsupport.tech` and give them remote access.",
+            options: [
+                { text: 'Hang up immediately and block the number.', correct: true, feedback: "Correct. This is a common vishing (voice phishing) tactic. Legitimate companies won't initiate contact this way and ask for remote access." },
+                { text: 'Follow their instructions. They sound very professional.', correct: false, feedback: "This is a classic tech support scam. Microsoft will never call you unsolicited about viruses. Giving them remote access would compromise your computer." }
+            ]
+        },
+        {
+            icon: '☕',
+            question: "You're at a coffee shop using their free public Wi-Fi. You need to quickly check your bank balance. Is this a good idea?",
+            options: [
+                { text: "No, public Wi-Fi is not secure. I'll wait until I'm on a trusted network.", correct: true, feedback: "Great choice! Public Wi-Fi can be easily monitored by cybercriminals. It's best to avoid accessing sensitive accounts on it." },
+                { text: 'Yes, it has a password, so it must be secure enough for a quick look.', correct: false, feedback: "Not quite. Even password-protected public Wi-Fi can be insecure. Hackers on the same network could potentially intercept your data." }
+            ]
+        },
+        {
+            icon: '🛍️',
+            question: "Your boss sends an urgent email: 'Stuck in a meeting, can you quickly buy three $100 Amazon gift cards for a client? Just email me the codes from the back.' The request is unusual.",
+            options: [
+                { text: 'Verify the request by calling or texting your boss directly.', correct: true, feedback: "Perfect response! This is a common gift card scam. Scammers impersonate executives, banking on urgency to bypass your suspicion. Always verify unusual financial requests out-of-band." },
+                { text: 'Buy the cards and email the codes to get it done fast.', correct: false, feedback: "Be careful! This is a huge red flag. Once you send the codes, the money is gone instantly. Urgency is a key tactic in social engineering." }
+            ]
+        },
+        {
+            icon: '📷',
+            question: "At a new cafe, you scan a QR code to view the menu. It takes you to a webpage that immediately asks to download an app (`menu.apk`) to see their specials.",
+             options: [
+                { text: `Download the app. It's probably how their digital menu works.`, correct: false, feedback: "Risky! Sideloading an '.apk' file from an untrusted source can install malware. A simple menu should just be a webpage, not an app download." },
+                { text: 'Close the page and ask the staff for a physical menu.', correct: true, feedback: "Smart move. This is a known 'quishing' (QR code phishing) technique. Malicious QR codes can lead to dangerous sites or downloads." }
+            ]
+        },
+        {
+            icon: '💬',
+            question: "You get a message on social media from a friend: 'OMG is this you in this video??' with a link. You haven't talked to this friend in years.",
+            options: [
+                { text: "Message your friend separately (e.g., via text) to ask if they sent it.", correct: true, feedback: "Perfect! This is a common tactic used by hackers who have taken over an account. Verifying through another channel is the best way to stay safe." },
+                { text: "Click the link to see the video. I'm curious!", correct: false, feedback: "Don't get hooked! This is a social engineering lure. The link likely leads to a phishing site to steal your own login credentials." }
+            ]
+        },
+        {
+            icon: '🔐',
+            question: "You are creating a password for a new online account. Which of these is the strongest password?",
+            options: [
+                { text: 'Tr0ub4dor&3!', correct: false, feedback: "Good try with the character substitution, but it's still based on a dictionary word and is relatively short. Longer is stronger!" },
+                { text: 'OrangeWhaleSingingLoudly', correct: true, feedback: "Excellent! A long passphrase combining unrelated words is much harder to crack than a shorter, more complex one. Length is key!" }
+            ]
+        },
+        {
+            icon: '🏢',
+            question: "An email from your 'IT Department' states a new system is being installed and you need to provide your current password in a reply so they can migrate your account.",
+            options: [
+                { text: 'Call the IT department using a known number to verify the request.', correct: true, feedback: "Exactly right! A legitimate IT department will never ask for your password via email. Verifying by phone is a smart move to expose the scam." },
+                { text: 'Reply with your password so they can get the work done quickly.', correct: false, feedback: "Never do this! This is a spear phishing attack trying to trick you. Your password should be kept secret, even from IT." }
+            ]
+        },
+         {
+            icon: '📦',
+            question: "You receive a text message: 'Your package delivery has failed. Please visit tiny-url.info/track to reschedule.' You are expecting a package.",
+            options: [
+                { text: "Go to the official courier's website and use the official tracking number.", correct: true, feedback: "That's the way! Scammers prey on your expectations. Always use the official website and tracking number, not suspicious links from texts." },
+                { text: "Click the link, it's probably the easiest way to reschedule.", correct: false, feedback: "Watch out! This is a common 'smishing' (SMS phishing) attack. The link leads to a fake site designed to steal your info or money." }
+            ]
+        },
+        {
+            icon: '🔒',
+            question: "When entering payment details on a shopping site, what should you look for in your browser's address bar to ensure the connection is secure?",
+            options: [
+                { text: "A padlock icon and an address starting with 'https://'", correct: true, feedback: "Correct! The 's' in https stands for 'secure', and the padlock icon indicates that the data you send is encrypted and protected from eavesdroppers." },
+                { text: "The website having a professional design and good reviews.", correct: false, feedback: "While good design is nice, it doesn't guarantee security. Phishing sites can look very professional. Always check for 'https://' and the padlock." }
+            ]
+        }
+    ];
+
+    // --- GAME STATE ---
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let questionsData = [];
+
+    // --- FUNCTIONS ---
+    function createBubbles() {
+        for (let i = 0; i < 25; i++) {
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            const size = Math.random() * 40 + 10;
+            bubble.style.width = `${size}px`;
+            bubble.style.height = `${size}px`;
+            bubble.style.left = `${Math.random() * 100}%`;
+            bubble.style.animationDuration = `${Math.random() * 8 + 7}s`;
+            bubble.style.animationDelay = `${Math.random() * 10}s`;
+            bubble.style.setProperty('--bubble-sway', Math.random() * 2 * Math.PI);
+            bubblesContainer.appendChild(bubble);
+        }
+    }
+    
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    function startGame() {
+        startScreen.classList.add('hidden');
+        endScreen.classList.add('hidden');
+        gameScreen.classList.remove('hidden');
+
+        currentQuestionIndex = 0;
+        score = 0;
+        questionsData = shuffleArray([...questions]);
+        totalQuestionsEl.textContent = questionsData.length;
+
+        updateScore();
+        showQuestion();
+    }
+
+    function showQuestion() {
+        if (currentQuestionIndex >= questionsData.length) {
+            endGame();
+            return;
+        }
+
+        const question = questionsData[currentQuestionIndex];
+        scenarioIconEl.textContent = question.icon;
+        questionTextEl.textContent = question.question;
+        questionCounterEl.textContent = currentQuestionIndex + 1;
+        
+        optionsContainer.innerHTML = '';
+        const shuffledOptions = shuffleArray([...question.options]);
+
+        shuffledOptions.forEach(option => {
+            const button = document.createElement('button');
+            button.className = 'option-btn bg-cyan-600 hover:bg-cyan-700 text-white font-semibold p-4 rounded-lg shadow-md text-left';
+            button.innerHTML = `<span class="text-xl">${option.correct ? '🐟' : '🐠'}</span> <span class="align-middle">${option.text}</span>`;
+            button.onclick = () => selectOption(option, button);
+            optionsContainer.appendChild(button);
+        });
+
+        feedbackEl.textContent = '';
+        feedbackEl.className = 'mt-4 text-center text-lg font-semibold min-h-[3em] p-2 rounded-lg';
+        updateProgressBar();
+    }
+    
+    function selectOption(option, button) {
+        const buttons = optionsContainer.querySelectorAll('button');
+        buttons.forEach(btn => btn.disabled = true);
+
+        if (option.correct) {
+            score++;
+            button.classList.add('correct');
+            feedbackEl.textContent = option.feedback;
+            feedbackEl.classList.add('text-green-300');
+        } else {
+            button.classList.add('incorrect');
+            questionCard.classList.add('shake');
+            feedbackEl.textContent = option.feedback;
+            feedbackEl.classList.add('text-red-300');
+            setTimeout(() => questionCard.classList.remove('shake'), 500);
+        }
+
+        updateScore();
+        
+        setTimeout(() => {
+            currentQuestionIndex++;
+            showQuestion();
+        }, 4500); // Wait 4.5 seconds to read feedback
+    }
+
+    function updateScore() {
+        scoreEl.textContent = score;
+    }
+
+    function updateProgressBar() {
+        const progress = (currentQuestionIndex / questionsData.length) * 100;
+        progressBar.style.width = `${progress}%`;
+        playerFish.style.left = `calc(${progress}% - 40px)`;
+    }
+
+    function endGame() {
+        gameScreen.classList.add('hidden');
+        endScreen.classList.remove('hidden');
+        finalScoreEl.textContent = `${score} / ${questionsData.length}`;
+
+        let message = '';
+        const percentage = score / questionsData.length;
+        if (percentage === 1) {
+            message = "Perfect score! You're a cybersecurity master, navigating the reef like a pro. Keep up the great work!";
+        } else if (percentage >= 0.7) {
+            message = "Great job! You avoided most of the hooks. You have a sharp eye for phishing attempts.";
+        } else if (percentage >= 0.4) {
+            message = "Not bad, but a few tricky lures snagged you. Remember to always be suspicious and verify before clicking!";
+        } else {
+            message = "The Phishing Reef is tough! Don't worry, every mistake is a lesson learned. Keep practicing to become a savvy sailor of the web!";
+        }
+        endMessageEl.textContent = message;
+    }
+
+
+    // --- EVENT LISTENERS ---
+    startBtn.addEventListener('click', startGame);
+    restartBtn.addEventListener('click', startGame);
+
+    // --- INITIALIZATION ---
+    createBubbles();
+</script>
+</body>
+</html>
+
