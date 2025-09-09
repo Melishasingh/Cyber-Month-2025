@@ -41,7 +41,6 @@
     <div id="gameContainer" class="w-full max-w-3xl mx-auto hidden">
         <div class="flex justify-between items-center bg-gray-800 p-3 rounded-lg mb-4 shadow-lg">
             <div><span class="font-bold text-lg">Score:</span> <span id="score" class="font-mono text-xl text-green-400">0</span></div>
-            <div class="font-bold text-lg">Player: <span id="playerNameDisplay" class="text-cyan-300"></span></div>
             <div class="flex items-center gap-4">
                 <div id="streakContainer" class="text-center">
                     <span class="font-bold text-lg text-orange-400">Streak</span>
@@ -72,7 +71,6 @@
         const gameContainer = document.getElementById('gameContainer');
         const scoreEl = document.getElementById('score');
         const gameTimerEl = document.getElementById('gameTimer');
-        const playerNameDisplayEl = document.getElementById('playerNameDisplay');
         const streakEl = document.getElementById('streak');
         const streakContainer = document.getElementById('streakContainer');
         const scenarioContainer = document.getElementById('scenarioContainer');
@@ -83,7 +81,6 @@
         const modalContent = document.getElementById('modal-content');
         
         // --- Google Form Configuration ---
-        // This is the ID from your Google Form link.
         const GOOGLE_FORM_ID = '1FAIpQLSfqJvaPivS4Fyi9VaDFROg8S38PhY687E3-pwofxDXdK63I3Q';
 
         // --- Game Scenarios ---
@@ -100,7 +97,6 @@
         let currentScenarioIndex = 0;
         let score = 0;
         let streak = 0;
-        let playerName = '';
         let gameTimer = 90;
         let questionTimer = 15;
         let gameTimerInterval;
@@ -184,12 +180,6 @@
         }
 
         function startGame() {
-            const nameInput = document.getElementById('playerNameInput');
-            if (!nameInput || nameInput.value.trim() === '') {
-                alert('Please enter your name to start!');
-                return;
-            }
-            playerName = nameInput.value.trim();
             score = 0;
             streak = 0;
             gameTimer = 90;
@@ -201,7 +191,6 @@
             scoreEl.textContent = score;
             streakEl.textContent = `${streak}x`;
             gameTimerEl.textContent = gameTimer;
-            playerNameDisplayEl.textContent = playerName;
             gameTimerInterval = setInterval(() => {
                 gameTimer--;
                 gameTimerEl.textContent = gameTimer;
@@ -216,7 +205,6 @@
             clearInterval(gameTimerInterval);
             clearInterval(questionTimerInterval);
             
-            // This is now a simple, direct link to your form.
             const raffleUrl = `https://docs.google.com/forms/d/e/${GOOGLE_FORM_ID}/viewform`;
 
             showModal('Challenge Over!', `
@@ -240,7 +228,6 @@
             showModal('Credential Guardian Challenge', `
                 <p class="text-gray-300 mb-2">Test your security skills! Decide if each scenario is a safe or unsafe practice.</p>
                 <p class="text-gray-300 mb-4">Answer correctly and quickly to maximize your score. Good luck!</p>
-                <input type="text" id="playerNameInput" placeholder="Enter your name" class="w-full p-3 rounded bg-gray-700 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-4" required>
                 <div class="flex justify-center gap-4">
                     <button onclick="startGame()" class="btn btn-safe text-white font-bold py-3 px-6 rounded-lg text-lg">Start Challenge</button>
                 </div>
