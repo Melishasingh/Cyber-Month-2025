@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credential Guardian Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+
+    <div id="gameContainer" class="w-full max-w-3xl mx-auto hidden">
+        <div class="flex justify-between items-center bg-gray-800 p-3 rounded-lg mb-4 shadow-lg">
+            <div><span class="font-bold text-lg">Score:</span> <span id="score" class="font-mono text-xl text-green-400">0</span></div>
+            <div class="font-bold text-lg">Player: <span id="playerNameDisplay" class="text-cyan-300"></span></div>
+            <div class="flex items-center gap-4">
+                <div id="streakContainer" class="text-center">
+                    <span class="font-bold text-lg text-orange-400">Streak</span>
+                    <div id="streak" class="font-mono text-xl font-bold text-orange-400">0x</div>
+                </div>
+                <div><span class="font-bold text-lg">Time:</span> <span id="gameTimer" class="font-mono text-xl text-yellow-400">90</span></div>
+            </div>
+        </div>
+        <div id="scenarioContainer" class="bg-white text-gray-800 rounded-lg shadow-xl p-6 min-h-[300px]"></div>
+        <div class="w-full bg-gray-700 rounded-full h-2.5 mt-4">
+            <div id="questionTimerBar" class="bg-cyan-400 h-2.5 rounded-full timer-bar" style="width: 100%"></div>
+        </div>
+        <div id="actionButtons" class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button onclick="makeChoice(false)" class="btn btn-safe text-white font-bold py-4 px-6 rounded-lg text-xl uppercase tracking-wider">Safe Practice</button>
+            <button onclick="makeChoice(true)" class="btn btn-unsafe text-white font-bold py-4 px-6 rounded-lg text-xl uppercase tracking-wider">Unsafe Practice</button>
+        </div>
+        <div id="feedbackContainer" class="mt-6 p-4 rounded-lg bg-gray-800 text-white hidden"></div>
+    </div>
+
+    <div id="modal" class="fixed inset-0 modal-backdrop flex items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 rounded-lg shadow-2xl p-8 max-w-lg w-full text-center transform transition-all">
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
