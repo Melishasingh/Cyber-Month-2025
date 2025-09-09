@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insider Risk: Digital Detective</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Share Tech Mono', monospace;
+            background-color: #111827; /* bg-gray-900 */
+        }
+        .font-display {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .game-container {
+            background: #374151; /* bg-gray-700 */
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            border: 4px solid #4b5563; /* bg-gray-600 */
+        }
+        .clickable {
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            border: 3px solid transparent;
+        }
+        .clickable:hover {
+            transform: scale(1.05);
+            filter: brightness(1.2);
+        }
+        .found {
+            border: 3px solid #22c55e; /* green-500 */
+            box-shadow: 0 0 15px #22c55e;
+            filter: brightness(1.1);
+        }
+        .found:hover {
+            transform: none;
+            cursor: not-allowed;
+        }
+        .decoy-clicked {
+            border: 3px solid #ef4444; /* red-500 */
+            animation: shake 0.5s;
+        }
+        .decoy-clicked:hover {
+            transform: none;
+            cursor: not-allowed;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px) rotate(-1deg); }
+            75% { transform: translateX(5px) rotate(1deg); }
+        }
+        .modal-bg {
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background-color: #1f2937; /* bg-gray-800 */
+            border: 4px solid #10b981; /* emerald-500 */
+        }
+        .btn {
+            transition: all 0.2s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="text-gray-200 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-5xl mx-auto">
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center">
+            <h1 class="font-display text-5xl md:text-7xl text-emerald-400">Digital Detective</h1>
+            <p class="mt-4 text-lg text-gray-300">Investigate the scene. Find all 6 insider risks, but beware of decoys!<br>Clicking a non-risk item will cost you <span class="text-red-500 font-bold">5 seconds</span>.</p>
+            <button id="start-btn" class="mt-8 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-2xl py-4 px-10 rounded-lg btn">
+                Start Investigation
+            </button>
+        </div>
+        
+        <!-- Game Screen -->
+        <div id="game-screen" class="hidden">
+            <header class="text-center mb-4">
+                <div class="flex justify-between items-center bg-gray-800 p-3 rounded-lg">
+                    <div class="font-display text-2xl">Risks Found: <span id="risks-found" class="text-emerald-400">0</span> / 6</div>
+                    <div class="font-display text-2xl">Time: <span id="timer" class="text-red-500">75</span></div>
+                </div>
+            </header>
+            
+            <main id="desk-scene" class="game-container relative w-full h-[600px] rounded-lg p-4">
+                <!-- Desk items will be placed here -->
+                <div id="risk-1" data-risk="1" class="clickable absolute top-[10%] left-[25%] w-[50%] h-[55%] bg-gray-900 rounded-lg p-4 shadow-lg flex flex-col">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="w-3 h-3 bg-red-500 rounded-full"></span><span class="w-3 h-3 bg-yellow-500 rounded-full"></span><span class="w-3 h-3 bg-green-500 rounded-full"></span>
+                    </div>
+                    <div class="bg-white text-gray-800 flex-grow rounded p-2 text-xs md:text-sm">
+                        <p class="font-bold">To: Personal Account &lt;j.doe.home@email.com&gt;</p>
+                        <p class="font-bold">From: John Doe &lt;j.doe@company.com&gt;</p>
+                        <p class="font-bold">Subject: Files for weekend</p>
+                        <p class="mt-2">Sending myself the client list and Q4 projections to work on over the weekend.</p>
+                        <div class="mt-2 p-2 bg-gray-200 rounded">📎 client_list_master.xlsx</div>
+                        <div class="mt-1 p-2 bg-gray-200 rounded">📎 Q4_financial_projections.pptx</div>
+                    </div>
+                </div>
+                <div id="risk-2" data-risk="2" class="clickable absolute top-[15%] left-[5%] w-24 h-24 bg-yellow-200 text-gray-800 p-2 transform -rotate-6 shadow-lg flex items-center justify-center text-center text-sm">
+                    Password:<br>Password123!
+                </div>
+                <div id="risk-3" data-risk="3" class="clickable absolute bottom-[5%] right-[5%] w-24 h-40 bg-gray-800 border-4 border-black rounded-xl p-2 flex flex-col">
+                     <div class="w-8 h-1 bg-black rounded-t-lg mx-auto"></div>
+                     <div class="bg-blue-200 text-blue-900 flex-grow mt-2 rounded p-1 text-xs">
+                         <p class="font-bold">Team Chat:</p>
+                         <p class="bg-blue-300 p-1 rounded my-1">Hey, can you send me that project file? My access isn't working.</p>
+                         <p class="bg-green-300 p-1 rounded text-right">Sure, no problem. Sent.</p>
+                     </div>
+                </div>
+                <div id="risk-4" data-risk="4" class="clickable absolute bottom-[10%] left-[10%] w-32 h-10 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                    COMPANY USB
+                </div>
+                 <div id="risk-5" data-risk="5" class="clickable absolute top-[70%] left-[30%] w-64 h-24 bg-white text-gray-800 p-2 shadow-lg transform rotate-3 flex flex-col text-sm">
+                    <h3 class="font-bold text-center border-b border-gray-400">Project Apollo - CONFIDENTIAL</h3>
+                    <p class="mt-2">Team member Sarah Jones has been underperforming and was denied a promotion. She expressed significant anger and made comments about "getting what she deserves".</p>
+                </div>
+                <div id="risk-6" data-risk="6" class="clickable absolute top-[5%] left-[80%] w-32 h-12 bg-gray-200 rounded-lg p-2 flex items-center shadow-lg">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path></svg>
+                    <span class="text-gray-800 ml-2 text-sm">Public WiFi<br><span class="text-red-600 font-bold">Connected</span></span>
+                </div>
+
+                <!-- DECOYS -->
+                <div id="decoy-1" data-decoy="1" class="clickable absolute top-[5%] left-[5%] w-24 h-12 bg-white rounded-full flex items-center justify-center shadow-lg">
+                    <span class="text-gray-800 font-bold">COFFEE</span>
+                </div>
+                <div id="decoy-2" data-decoy="2" class="clickable absolute bottom-[30%] left-[5%] w-24 h-16 bg-white text-gray-800 p-2 transform rotate-12 shadow-lg flex flex-col text-xs">
+                    <h4 class="font-bold">To-Do:</h4>
+                    <ul class="list-disc list-inside">
+                        <li>Finish report</li>
+                        <li>Team meeting</li>
+                        <li>Submit expenses</li>
+                    </ul>
+                </div>
+                 <div id="decoy-3" data-decoy="3" class="clickable absolute bottom-[5%] left-[45%] w-32 h-20 bg-gray-800 border-4 border-black rounded-xl p-2 flex items-center justify-center">
+                    <svg class="w-10 h-10 text-gray-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path></svg>
+                </div>
+
+            </main>
+        </div>
+        
+    </div>
+
+    <!-- Modal for feedback -->
+    <div id="feedback-modal" class="fixed inset-0 modal-bg items-center justify-center hidden">
+        <div class="modal-content w-11/12 max-w-2xl p-8 rounded-lg shadow-2xl text-center">
+            <h2 id="feedback-title" class="font-display text-4xl mb-4"></h2>
+            <p id="feedback-text" class="text-lg text-gray-300 mb-6"></p>
+            <button id="close-modal-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xl py-3 px-8 rounded-lg btn">Continue</button>
+        </div>
+    </div>
+
+    <!-- End Game Modal -->
+    <div id="end-game-modal" class="fixed inset-0 modal-bg items-center justify-center hidden">
+        <div class="modal-content text-center w-11/12 max-w-2xl p-8 rounded-lg shadow-2xl">
+            <h2 id="end-title" class="font-display text-5xl text-amber-400"></h2>
+            <p class="text-xl mt-4">You found <span id="final-score"></span> out of 6 risks.</p>
+            <p id="end-message" class="text-slate-200 my-6"></p>
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSdGn6OZ1qPZ4iqpaNpi5gdedbYHcRSknDjxh93Q_CLYS5x0uQ/viewform?usp=pp_url" target="_blank" class="w-full inline-block bg-green-600 hover:bg-green-500 text-white font-bold text-2xl py-4 px-8 rounded-lg btn">
+                Enter Raffle
+            </a>
+            <button id="play-again-btn" class="mt-4 w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-2 px-6 rounded-lg btn">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const risks = [
+            { id: 1, text: "Data Exfiltration: Emailing sensitive company files like a 'client_list_master' to a personal account is a major security breach and a form of data theft.", found: false },
+            { id: 2, text: "Insecure Password Management: Writing a password on a sticky note completely bypasses digital security. Anyone could use it to gain unauthorized access.", found: false },
+            { id: 3, text: "Unauthorized Access Sharing: Sharing files with a colleague who doesn't have access, without verification, is a policy violation. Their account could be compromised, or they may not be cleared for that data.", found: false },
+            { id: 4, text: "Unattended Removable Media: Leaving a company USB drive unattended on a desk is a physical security risk. It could be lost, stolen, or used by an unauthorized person.", found: false },
+            { id: 5, text: "Unsecured Confidential Documents: Leaving a printed document with sensitive HR and performance information out in the open is a major confidentiality breach.", found: false },
+            { id: 6, text: "Unsecured Network Connection: Working on company business while connected to public WiFi is dangerous. Attackers can intercept data on unsecured networks.", found: false }
+        ];
+
+        const decoys = [
+            { id: 1, text: "This is just a coffee mug. While important for morale, it's not a security risk!", found: false},
+            { id: 2, text: "This is a normal to-do list with no sensitive information. It's a sign of good organization, not a security risk.", found: false},
+            { id: 3, text: "This is a locked personal phone. As long as it's locked with a strong password, it's not an immediate risk.", found: false}
+        ];
+
+        let foundCount = 0;
+        let timerInterval;
+        let timeLeft = 75;
+
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const feedbackModal = document.getElementById('feedback-modal');
+        const endGameModal = document.getElementById('end-game-modal');
+        
+        function startGame() {
+            resetGame();
+            startScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function updateTimer() {
+            timeLeft--;
+            document.getElementById('timer').textContent = timeLeft;
+            if (timeLeft <= 0) {
+                timeLeft = 0;
+                document.getElementById('timer').textContent = timeLeft;
+                endGame(true); // Game over, time ran out
+            }
+        }
+        
+        function handleItemClick(event) {
+            const element = event.currentTarget;
+            const riskId = element.dataset.risk ? parseInt(element.dataset.risk) : null;
+            const decoyId = element.dataset.decoy ? parseInt(element.dataset.decoy) : null;
+
+            if (riskId) {
+                const risk = risks.find(r => r.id === riskId);
+                if (risk && !risk.found) {
+                    risk.found = true;
+                    foundCount++;
+                    element.classList.add('found');
+                    document.getElementById('risks-found').textContent = foundCount;
+
+                    document.getElementById('feedback-title').textContent = "Risk Identified!";
+                    document.getElementById('feedback-title').className = "font-display text-4xl text-emerald-400 mb-4";
+                    document.getElementById('feedback-text').textContent = risk.text;
+                    feedbackModal.classList.add('flex');
+                    feedbackModal.classList.remove('hidden');
+                    
+                    if (foundCount === risks.length) {
+                        endGame(false); // Game won
+                    }
+                }
+            } else if (decoyId) {
+                const decoy = decoys.find(d => d.id === decoyId);
+                if(decoy && !decoy.found) {
+                    decoy.found = true;
+                    element.classList.add('decoy-clicked');
+                    
+                    timeLeft -= 5;
+                    updateTimer();
+
+                    document.getElementById('feedback-title').textContent = "Not a Risk!";
+                    document.getElementById('feedback-title').className = "font-display text-4xl text-red-500 mb-4";
+                    document.getElementById('feedback-text').textContent = decoy.text;
+                    feedbackModal.classList.add('flex');
+                    feedbackModal.classList.remove('hidden');
+
+                    setTimeout(() => element.classList.remove('shake'), 500);
+                }
+            }
+        }
+        
+        function closeModal() {
+            feedbackModal.classList.add('hidden');
+            feedbackModal.classList.remove('flex');
+        }
+
+        function endGame(timeUp) {
+            clearInterval(timerInterval);
+            gameScreen.classList.add('hidden');
+
+            document.getElementById('final-score').textContent = foundCount;
+            const endTitle = document.getElementById('end-title');
+            const endMessage = document.getElementById('end-message');
+
+            if (timeUp) {
+                endTitle.textContent = "Time's Up!";
+                endTitle.className = "font-display text-5xl text-red-500";
+                endMessage.textContent = "The clock ran out! Review the risks and try to find them all next time.";
+            } else {
+                endTitle.textContent = "Investigation Complete!";
+                endTitle.className = "font-display text-5xl text-emerald-400";
+                endMessage.textContent = "Excellent detective work! You've successfully identified all insider risks.";
+            }
+
+            endGameModal.classList.add('flex');
+            endGameModal.classList.remove('hidden');
+        }
+        
+        function resetGame() {
+            foundCount = 0;
+            timeLeft = 75;
+            risks.forEach(r => r.found = false);
+            decoys.forEach(d => d.found = false);
+            
+            document.querySelectorAll('.clickable').forEach(el => {
+                el.classList.remove('found', 'decoy-clicked');
+            });
+            document.getElementById('risks-found').textContent = '0';
+            document.getElementById('timer').textContent = '75';
+            
+            clearInterval(timerInterval);
+            gameScreen.classList.add('hidden');
+            endGameModal.classList.add('hidden');
+            endGameModal.classList.remove('flex');
+            startScreen.classList.remove('hidden');
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.querySelectorAll('.clickable').forEach(el => el.addEventListener('click', handleItemClick));
+        document.getElementById('close-modal-btn').addEventListener('click', closeModal);
+        document.getElementById('play-again-btn').addEventListener('click', resetGame);
+
+    </script>
+</body>
+</html>
+
