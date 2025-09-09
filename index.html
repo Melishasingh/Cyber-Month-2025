@@ -6,7 +6,35 @@
     <title>Credential Guardian Challenge</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'Roboto Mono', monospace; }
+        .modal-backdrop { background-color: rgba(0, 0, 0, 0.75); }
+        .btn {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+        }
+        .btn-unsafe { background-color: #E53E3E; } .btn-unsafe:hover { background-color: #C53030; }
+        .btn-safe { background-color: #38A169; } .btn-safe:hover { background-color: #2F855A; }
+        .timer-bar { transition: width 0.1s linear; }
+        .feedback-correct { border-left: 5px solid #48BB78; }
+        .feedback-incorrect { border-left: 5px solid #F56565; }
+        .loader {
+            border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%;
+            width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes streak-pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+        .streak-pop-animation { animation: streak-pop 0.3s ease-in-out; }
+    </style>
 </head>
 <body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
 
@@ -39,6 +67,188 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script>
+        // --- DOM Elements ---
+        const gameContainer = document.getElementById('gameContainer');
+        const scoreEl = document.getElementById('score');
+        const gameTimerEl = document.getElementById('gameTimer');
+        const playerNameDisplayEl = document.getElementById('playerNameDisplay');
+        const streakEl = document.getElementById('streak');
+        const streakContainer = document.getElementById('streakContainer');
+        const scenarioContainer = document.getElementById('scenarioContainer');
+        const questionTimerBar = document.getElementById('questionTimerBar');
+        const actionButtons = document.getElementById('actionButtons');
+        const feedbackContainer = document.getElementById('feedbackContainer');
+        const modal = document.getElementById('modal');
+        const modalContent = document.getElementById('modal-content');
+        
+        // --- Google Form Configuration ---
+        // This is the ID from your Google Form link.
+        const GOOGLE_FORM_ID = '1FAIpQLSfqJvaPivS4Fyi9VaDFROg8S38PhY687E3-pwofxDXdK63I3Q';
+
+        // --- Game Scenarios ---
+        const scenarios = [
+            { type: 'email', from: 'IT Support <it-support@company.com>', to: 'All Employees <all@company.com>', subject: 'Action Required: Verify Your Password', body: 'Our records show your password is out of date. Please reply to this email with your current password to keep your account active.', isUnsafe: true, explanation: 'UNSAFE! Legitimate IT departments will NEVER ask for your password in an email.' },
+            { type: 'sms', sender: '+1-484-555-0104', body: 'MFA Code: 123456. We received a login request from a new device. If this wasn\'t you, reply with this code to cancel the login.', isUnsafe: true, explanation: 'UNSAFE! This is a scam. Attackers already have your password and are trying to trick you into giving them the MFA code.' },
+            { type: 'browser', title: 'Password Manager', body: 'Would you like to generate and save a strong, unique password for this site?', isUnsafe: false, explanation: 'SAFE! Using a password manager to create and store complex, unique passwords for each site is a core security best practice.' },
+            { type: 'website', title: 'Create Account', body: 'You are signing up for a new service. You decide to reuse the same password you use for your email and banking.', isUnsafe: true, explanation: 'UNSAFE! Reusing passwords is extremely risky. If one site is breached, attackers will use that same password to try and access your other accounts.' },
+            { type: 'login_prompt', title: 'Social Media Login', body: 'You log in to your social media. After entering your password, you are prompted to enter a 6-digit code from your authenticator app.', isUnsafe: false, explanation: 'SAFE! This is exactly how Multi-Factor Authentication (MFA) is supposed to work.' },
+            { type: 'sticky_note', title: 'Desktop', body: 'You write your new, complex password on a sticky note and put it on your monitor so you don\'t forget it.', isUnsafe: true, explanation: 'UNSAFE! Writing passwords down physically, especially in plain sight, completely defeats the purpose of having a strong password.' }
+        ];
+
+        let shuffledScenarios = [];
+        let currentScenarioIndex = 0;
+        let score = 0;
+        let streak = 0;
+        let playerName = '';
+        let gameTimer = 90;
+        let questionTimer = 15;
+        let gameTimerInterval;
+        let questionTimerInterval;
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function displayScenario() {
+            if (currentScenarioIndex >= shuffledScenarios.length) {
+                endGame();
+                return;
+            }
+            feedbackContainer.classList.add('hidden');
+            actionButtons.style.display = 'grid';
+            const scenario = shuffledScenarios[currentScenarioIndex];
+            let content = '';
+            if (scenario.type === 'email') {
+                content = `<div class="border rounded-md p-4"><div class="border-b pb-2 mb-2 text-sm"><p><span class="font-semibold">From:</span> ${scenario.from}</p><p><span class="font-semibold">To:</span> ${scenario.to}</p></div><div><span class="font-semibold">Subject:</span> ${scenario.subject}</div><hr class="my-3"><p class="text-gray-700">${scenario.body}</p></div>`;
+            } else if (scenario.type === 'sms') {
+                content = `<div class="w-4/5 mx-auto bg-green-200 p-3 rounded-lg shadow"><div class="font-semibold text-sm mb-1">${scenario.sender}</div><p>${scenario.body}</p></div>`;
+            } else {
+                content = `<div class="border-2 border-gray-300 rounded-lg shadow-inner"><div class="bg-gray-200 p-2 border-b-2 border-gray-300 font-semibold text-gray-600">${scenario.title}</div><p class="p-8 text-center text-lg">${scenario.body}</p></div>`;
+            }
+            scenarioContainer.innerHTML = content;
+            startQuestionTimer();
+        }
+
+        function startQuestionTimer() {
+            questionTimer = 15;
+            questionTimerBar.style.width = '100%';
+            questionTimerBar.classList.remove('bg-yellow-400', 'bg-red-500');
+            questionTimerBar.classList.add('bg-cyan-400');
+            clearInterval(questionTimerInterval);
+            questionTimerInterval = setInterval(() => {
+                questionTimer--;
+                const percentage = (questionTimer / 15) * 100;
+                questionTimerBar.style.width = `${percentage}%`;
+                if (percentage < 60) questionTimerBar.classList.replace('bg-cyan-400', 'bg-yellow-400');
+                if (percentage < 30) questionTimerBar.classList.replace('bg-yellow-400', 'bg-red-500');
+                if (questionTimer <= 0) {
+                    makeChoice(null);
+                }
+            }, 1000);
+        }
+
+        function makeChoice(isUnsafeChoice) {
+            clearInterval(questionTimerInterval);
+            const scenario = shuffledScenarios[currentScenarioIndex];
+            const correctChoice = (isUnsafeChoice === scenario.isUnsafe);
+            let feedbackHtml = '';
+            if (isUnsafeChoice === null) {
+                streak = 0;
+                feedbackHtml = `<h3 class="font-bold text-xl text-yellow-400 mb-2">Time's Up!</h3><p>${scenario.explanation}</p>`;
+                feedbackContainer.className = 'mt-6 p-4 rounded-lg bg-gray-800 text-white feedback-incorrect';
+            } else if (correctChoice) {
+                streak++;
+                const streakBonus = streak * 10;
+                const points = 100 + (questionTimer * 10) + streakBonus;
+                score += points;
+                feedbackHtml = `<h3 class="font-bold text-xl text-green-400 mb-2">Correct! (+${points})</h3><p>${scenario.explanation}</p>`;
+                feedbackContainer.className = 'mt-6 p-4 rounded-lg bg-gray-800 text-white feedback-correct';
+                streakContainer.classList.add('streak-pop-animation');
+                setTimeout(() => streakContainer.classList.remove('streak-pop-animation'), 300);
+            } else {
+                streak = 0;
+                feedbackHtml = `<h3 class="font-bold text-xl text-red-400 mb-2">Incorrect!</h3><p>${scenario.explanation}</p>`;
+                feedbackContainer.className = 'mt-6 p-4 rounded-lg bg-gray-800 text-white feedback-incorrect';
+            }
+            scoreEl.textContent = score;
+            streakEl.textContent = `${streak}x`;
+            feedbackContainer.innerHTML = feedbackHtml;
+            feedbackContainer.classList.remove('hidden');
+            actionButtons.style.display = 'none';
+            currentScenarioIndex++;
+            setTimeout(displayScenario, 4500);
+        }
+
+        function startGame() {
+            const nameInput = document.getElementById('playerNameInput');
+            if (!nameInput || nameInput.value.trim() === '') {
+                alert('Please enter your name to start!');
+                return;
+            }
+            playerName = nameInput.value.trim();
+            score = 0;
+            streak = 0;
+            gameTimer = 90;
+            currentScenarioIndex = 0;
+            shuffledScenarios = [...scenarios];
+            shuffleArray(shuffledScenarios);
+            modal.style.display = 'none';
+            gameContainer.style.display = 'block';
+            scoreEl.textContent = score;
+            streakEl.textContent = `${streak}x`;
+            gameTimerEl.textContent = gameTimer;
+            playerNameDisplayEl.textContent = playerName;
+            gameTimerInterval = setInterval(() => {
+                gameTimer--;
+                gameTimerEl.textContent = gameTimer;
+                if (gameTimer <= 0) {
+                    endGame();
+                }
+            }, 1000);
+            displayScenario();
+        }
+
+        function endGame() {
+            clearInterval(gameTimerInterval);
+            clearInterval(questionTimerInterval);
+            
+            // This is now a simple, direct link to your form.
+            const raffleUrl = `https://docs.google.com/forms/d/e/${GOOGLE_FORM_ID}/viewform`;
+
+            showModal('Challenge Over!', `
+                <p class="text-xl mb-4">Final Score: <span class="font-bold text-green-400">${score}</span></p>
+                <p class="text-gray-300 mb-6">Great job! Click the button below to enter the raffle.</p>
+                <div class="flex justify-center gap-4">
+                    <a href="${raffleUrl}" target="_blank" class="btn btn-safe text-white font-bold py-3 px-6 rounded-lg text-lg">
+                        Enter Raffle
+                    </a>
+                    <button onclick="showIntroModal()" class="btn bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-lg text-lg">Play Again</button>
+                </div>
+            `);
+        }
+
+        function showModal(title, content) {
+            modalContent.innerHTML = `<h2 class="text-3xl font-bold mb-4 text-cyan-400">${title}</h2>${content}`;
+            modal.style.display = 'flex';
+        }
+
+        function showIntroModal() {
+            showModal('Credential Guardian Challenge', `
+                <p class="text-gray-300 mb-2">Test your security skills! Decide if each scenario is a safe or unsafe practice.</p>
+                <p class="text-gray-300 mb-4">Answer correctly and quickly to maximize your score. Good luck!</p>
+                <input type="text" id="playerNameInput" placeholder="Enter your name" class="w-full p-3 rounded bg-gray-700 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-4" required>
+                <div class="flex justify-center gap-4">
+                    <button onclick="startGame()" class="btn btn-safe text-white font-bold py-3 px-6 rounded-lg text-lg">Start Challenge</button>
+                </div>
+            `);
+        }
+
+        // --- Initializer ---
+        showIntroModal();
+    </script>
 </body>
 </html>
